@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#3f2a1d">
+    <title>Offline — Pancor Mas</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; color: #f5f5f4; background: radial-gradient(circle at top, #3f2a1d, #09090b 58%); font-family: system-ui, sans-serif; }
+        main { width: min(100%, 430px); padding: 30px; border: 1px solid rgba(255,255,255,.12); border-radius: 24px; background: rgba(24,24,27,.9); box-shadow: 0 24px 70px rgba(0,0,0,.35); text-align: center; }
+        .icon { display: grid; width: 64px; height: 64px; margin: 0 auto 18px; place-items: center; border-radius: 18px; color: #fbbf24; background: rgba(245,158,11,.12); font-size: 30px; }
+        h1 { margin: 0 0 10px; font-size: 24px; }
+        p { margin: 0; color: #d6d3d1; line-height: 1.6; }
+        button { margin-top: 24px; width: 100%; border: 0; border-radius: 12px; padding: 12px 16px; color: #1c1917; background: #f59e0b; font-weight: 700; cursor: pointer; }
+        small { display: block; margin-top: 16px; color: #a8a29e; line-height: 1.5; }
+    </style>
+</head>
+<body>
+<main>
+    <div class="icon" aria-hidden="true">☕</div>
+    <h1>Koneksi terputus</h1>
+    <p>Aplikasi masih dapat dibuka, tetapi transaksi dan lokasi belum dapat dikirim ke server.</p>
+    <button type="button" onclick="location.reload()">Coba hubungkan kembali</button>
+    <small>Jangan ulangi transaksi yang sebelumnya sudah sempat diproses. Periksa riwayat setelah jaringan kembali.</small>
+</main>
+</body>
+</html>

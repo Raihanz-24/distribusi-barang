@@ -1,0 +1,306 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/filament/**/*';
+
+:root {
+    --pancor-espresso-950: #160c08;
+    --pancor-espresso-900: #21120c;
+    --pancor-espresso-800: #321b11;
+    --pancor-caramel-700: #a85622;
+    --pancor-caramel-600: #c97832;
+    --pancor-caramel-500: #df9450;
+    --pancor-cream-100: #f7efe6;
+    --pancor-cream-50: #fcfaf7;
+    --pancor-shell: #28160f;
+}
+
+/* Warm content canvas with predictable light and dark surfaces. */
+html:not(.dark) body.fi-body {
+    background:
+        radial-gradient(circle at 92% 4%, rgb(223 148 80 / 8%), transparent 24rem),
+        #f7f4ef;
+    color: #2b1b13;
+}
+
+html.dark body.fi-body {
+    background:
+        radial-gradient(circle at 92% 4%, rgb(201 120 50 / 7%), transparent 25rem),
+        #0d0b0a;
+}
+
+.fi-topbar {
+    border-bottom: 1px solid rgb(255 255 255 / 8%) !important;
+    background: var(--pancor-shell) !important;
+    box-shadow: 0 9px 28px rgb(25 12 7 / 13%) !important;
+}
+
+.fi-topbar .fi-icon {
+    color: #d9c6b7 !important;
+}
+
+.fi-topbar button:hover .fi-icon,
+.fi-topbar a:hover .fi-icon {
+    color: #fff5eb !important;
+}
+
+.fi-topbar .fi-avatar {
+    outline: 2px solid rgb(223 148 80 / 30%);
+    outline-offset: 2px;
+}
+
+/* Sidebar: permanent espresso identity in both color modes. */
+.fi-sidebar {
+    border-inline-end: 1px solid rgb(255 255 255 / 8%) !important;
+    background: var(--pancor-shell) !important;
+    box-shadow: 16px 0 42px rgb(22 12 8 / 13%);
+}
+
+.fi-sidebar-header {
+    min-height: 5rem;
+    border-bottom: 1px solid rgb(255 255 255 / 8%) !important;
+    background: rgb(255 255 255 / 2%) !important;
+    box-shadow: none !important;
+}
+
+.fi-sidebar-nav {
+    background: transparent !important;
+}
+
+.fi-sidebar-group-label {
+    color: #ba9e89 !important;
+    font-size: .65rem !important;
+    font-weight: 750 !important;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.fi-sidebar-item-btn {
+    min-height: 2.75rem;
+    border: 1px solid transparent;
+    border-radius: .8rem !important;
+    transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.fi-sidebar-item-label {
+    color: #e6d9cf !important;
+    font-weight: 590 !important;
+}
+
+.fi-sidebar-item-icon {
+    color: #bc9d86 !important;
+}
+
+.fi-sidebar-item:not(.fi-active) > .fi-sidebar-item-btn:hover {
+    border-color: rgb(255 255 255 / 8%);
+    background: rgb(255 255 255 / 7%) !important;
+    transform: translateX(2px);
+}
+
+.fi-sidebar-item.fi-active > .fi-sidebar-item-btn {
+    border-color: rgb(255 229 202 / 21%);
+    background: linear-gradient(135deg, #d98a42, #ad5422) !important;
+    box-shadow: 0 9px 22px rgb(105 44 13 / 30%), inset 0 1px rgb(255 255 255 / 20%);
+}
+
+.fi-sidebar-item.fi-active > .fi-sidebar-item-btn .fi-sidebar-item-label,
+.fi-sidebar-item.fi-active > .fi-sidebar-item-btn .fi-sidebar-item-icon {
+    color: #fffaf4 !important;
+}
+
+.fi-sidebar-item-badge-ctn .fi-badge {
+    border-color: rgb(255 255 255 / 12%);
+    background: rgb(255 255 255 / 10%);
+    color: #ffe7cf;
+}
+
+.fi-sidebar-collapse-button,
+.fi-sidebar-close-button {
+    color: #d9c7b9 !important;
+}
+
+/* Brand with a stable logo slot that can be replaced without changing layout. */
+.fi-logo:has(.pancor-brand) {
+    width: 100%;
+    max-width: 13.75rem;
+}
+
+.pancor-brand {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    gap: .75rem;
+}
+
+.pancor-brand__mark {
+    display: grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: 0 0 2.75rem;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid rgb(255 232 209 / 18%);
+    border-radius: .9rem;
+    background: linear-gradient(145deg, rgb(255 255 255 / 12%), rgb(255 255 255 / 4%));
+    box-shadow: inset 0 1px rgb(255 255 255 / 15%), 0 8px 18px rgb(0 0 0 / 18%);
+}
+
+.pancor-brand__mark img {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: .7rem;
+}
+
+.pancor-brand__name {
+    display: grid;
+    min-width: 0;
+    line-height: 1;
+}
+
+.pancor-brand__name small {
+    color: #d7b89f;
+    font-size: .58rem;
+    font-weight: 700;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+}
+
+.pancor-brand__name strong {
+    margin-top: .26rem;
+    color: #fff8f1;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 1.13rem;
+    font-weight: 700;
+    letter-spacing: .025em;
+    white-space: nowrap;
+}
+
+.fi-topbar .pancor-brand__name small,
+.fi-sidebar-header .pancor-brand__name small {
+    color: #d9b99f !important;
+}
+
+.fi-topbar .pancor-brand__name strong,
+.fi-sidebar-header .pancor-brand__name strong {
+    color: #fff8f1 !important;
+    opacity: 1 !important;
+}
+
+/* Filament tables, sections, and form surfaces. */
+html:not(.dark) .fi-ta-ctn,
+html:not(.dark) .fi-section,
+html:not(.dark) .fi-sc-section,
+html:not(.dark) .fi-modal-window,
+html:not(.dark) .fi-dropdown-panel {
+    border-color: rgb(91 56 36 / 12%) !important;
+    background-color: #fff !important;
+    box-shadow: 0 10px 30px rgb(68 39 22 / 5%);
+}
+
+html:not(.dark) .fi-ta-header-cell {
+    background-color: #f4ede5 !important;
+}
+
+html:not(.dark) .fi-ta-row {
+    background-color: #fff !important;
+}
+
+html:not(.dark) .fi-ta-row:hover {
+    background-color: #fffaf5 !important;
+}
+
+html:not(.dark) .fi-input-wrp,
+html:not(.dark) .fi-fo-repeater-item {
+    border-color: rgb(91 56 36 / 14%) !important;
+    background-color: #fff !important;
+}
+
+html.dark .fi-ta-ctn,
+html.dark .fi-section,
+html.dark .fi-sc-section,
+html.dark .fi-modal-window,
+html.dark .fi-dropdown-panel {
+    border-color: rgb(255 255 255 / 8%) !important;
+    background-color: #181411 !important;
+}
+
+html.dark .fi-ta-header-cell {
+    background-color: #211a16 !important;
+}
+
+html.dark .fi-ta-row {
+    background-color: #181411 !important;
+}
+
+html.dark .fi-ta-row:hover {
+    background-color: #201914 !important;
+}
+
+/* Custom operational pages must follow Filament's selected mode, not OS mode. */
+html:not(.dark) .coffee-dashboard {
+    --coffee-panel: #fff;
+    --coffee-text: #2b1b13;
+}
+
+html:not(.dark) .coffee-panel,
+html:not(.dark) .coffee-metric {
+    border-color: rgb(91 56 36 / 12%);
+    box-shadow: 0 8px 30px rgb(65 38 15 / 6%);
+}
+
+html.dark .coffee-dashboard {
+    --coffee-panel: #181411;
+    --coffee-text: #f7f1eb;
+}
+
+html:not(.dark) .deposit-report {
+    --deposit-panel: #fff;
+}
+
+html:not(.dark) .deposit-filters,
+html:not(.dark) .deposit-summary article,
+html:not(.dark) .deposit-table-panel,
+html:not(.dark) .deposit-card {
+    border-color: rgb(91 56 36 / 12%);
+    background-color: #fff;
+    box-shadow: 0 7px 24px rgb(74 37 8 / 5%);
+}
+
+html:not(.dark) .deposit-filter input,
+html:not(.dark) .deposit-filter select {
+    background: #fff;
+    color: #2b1b13;
+}
+
+html.dark .deposit-report {
+    --deposit-panel: #181411;
+}
+
+html:not(.dark) .distribution-detail__hero,
+html:not(.dark) .distribution-detail__section,
+html:not(.dark) .distribution-detail__grid,
+html:not(.dark) .distribution-detail__money,
+html:not(.dark) .distribution-mobile-card {
+    border-color: rgb(91 56 36 / 12%);
+    background: #fff;
+    box-shadow: 0 8px 26px rgb(68 39 22 / 5%);
+}
+
+html.dark .distribution-detail__hero,
+html.dark .distribution-detail__section,
+html.dark .distribution-detail__grid,
+html.dark .distribution-detail__money,
+html.dark .distribution-mobile-card {
+    background: #181411;
+}
+
+@media (max-width: 767px) {
+    .fi-logo:has(.pancor-brand) {
+        max-width: 12.75rem;
+    }
+
+    .pancor-brand__name strong {
+        font-size: 1.02rem;
+    }
+}

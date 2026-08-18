@@ -1,0 +1,20 @@
+{
+    "name": "Sistem Distribusi Pancor Mas",
+    "short_name": "Pancor Mas",
+    "description": "Aplikasi distribusi, rute, transaksi toko, dan monitoring Sales Pancor Mas.",
+    "id": "/admin",
+    "start_url": "/admin",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait-primary",
+    "background_color": "#09090b",
+    "theme_color": "#3f2a1d",
+    "icons": [
+        {
+            "src": "/pwa-icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}

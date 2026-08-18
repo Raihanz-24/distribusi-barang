@@ -1,0 +1,84 @@
+@import 'tailwindcss';
+
+/* Follow Filament's selected theme instead of the device color preference. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+.map-container {
+    width: 100%;
+    overflow: hidden;
+}
+
+.store-popup {
+    min-width: 220px;
+    color: #111827;
+}
+
+.store-popup strong {
+    display: block;
+    font-size: 14px;
+}
+
+.store-popup-code {
+    margin-top: 2px;
+    color: #6b7280;
+    font-size: 11px;
+}
+
+.store-popup p {
+    margin: 8px 0;
+    font-size: 12px;
+}
+
+.store-popup dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 3px 8px;
+    font-size: 11px;
+}
+
+.store-popup dt {
+    color: #6b7280;
+}
+
+.store-popup dd {
+    margin: 0;
+    text-align: right;
+    font-weight: 600;
+}
+
+.store-popup-warning {
+    margin-top: 8px;
+    border-radius: 6px;
+    background: #f3e8ff;
+    padding: 6px 8px;
+    color: #7e22ce;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.store-popup-link {
+    display: block;
+    margin-top: 10px;
+    color: #b45309;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.store-popup-link-primary {
+    border-radius: 7px;
+    background: #b45309;
+    padding: 8px 10px;
+    color: #ffffff;
+    text-align: center;
+    text-decoration: none;
+}
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+}

@@ -24,3 +24,4 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 .git-commit-msg.tmp
+/public/build.zip

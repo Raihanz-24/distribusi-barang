@@ -76,7 +76,12 @@
         }
 
         @if (auth()->user()?->isSales())
-            if (!window.isSecureContext || !('geolocation' in navigator)) return;
+            if (!window.isSecureContext || !('geolocation' in navigator)) {
+                // Geofence hanya tersedia di secure context. Beri tahu pengguna
+                // agar tidak mengira aplikasi rusak.
+                console.warn('[GPS] Geolocation diblokir browser: halaman harus diakses lewat HTTPS.');
+                return;
+            }
 
             let lastSentAt = 0;
             let sending = false;

@@ -142,7 +142,25 @@
                                 @endif
                                 <div class="mt-4 space-y-2 rounded-lg {{ $transactionSummary['closing_debt'] > 0 ? 'bg-red-500/10 text-red-700 dark:text-red-400' : 'bg-green-500/10 text-green-700 dark:text-green-400' }} p-3"><div class="flex items-center justify-between"><span class="text-xs font-semibold">Total uang diterima</span><strong>Rp {{ number_format($transactionSummary['total_paid'], 0, ',', '.') }}</strong></div><div class="flex items-center justify-between border-t border-current/10 pt-2"><span class="text-xs font-semibold">Sisa seluruh hutang</span><strong>Rp {{ number_format($transactionSummary['closing_debt'], 0, ',', '.') }}</strong></div></div>
                             </div>
-                            <div class="rounded-xl bg-gray-50 p-4 text-sm dark:bg-white/5"><strong>Validasi kunjungan</strong><p class="mt-2 text-xs leading-5 text-gray-500">GPS wajib aktif agar transaksi tercatat pada toko dan jadwal yang benar.</p><div class="mt-3 text-xs font-semibold {{ $currentLatitude !== null ? 'text-green-600' : 'text-red-500' }}">{{ $currentLatitude !== null ? '✓ GPS sudah siap' : 'GPS belum diambil' }}</div></div>
+                            <div class="rounded-xl bg-gray-50 p-4 text-sm dark:bg-white/5">
+                                <strong>Validasi kunjungan</strong>
+                                @if ($locationNote)
+                                    <div class="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs font-semibold text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+                                        ⚠️ {{ $locationNote }}
+                                    </div>
+                                @else
+                                    <p class="mt-2 text-xs leading-5 text-gray-500">GPS wajib aktif agar transaksi tercatat pada toko dan jadwal yang benar.</p>
+                                @endif
+                                <div class="mt-3 text-xs font-semibold {{ $currentLatitude !== null ? 'text-green-600' : 'text-red-500' }}">
+                                    {{ $currentLatitude !== null ? '✓ Lokasi sudah siap' : 'Lokasi belum diambil' }}
+                                </div>
+                                @if ($currentLatitude === null)
+                                    <button type="button" x-on:click="useStoreLocation($wire, {{ $this->selectedStore->id }})" class="mt-3 w-full rounded-lg border border-amber-500/60 px-3 py-2 text-xs font-bold text-amber-700 hover:bg-amber-500/10 dark:text-amber-400">
+                                        📍 Pakai koordinat toko
+                                    </button>
+                                    <p class="mt-2 text-[10px] leading-4 text-gray-500">Gunakan bila GPS perangkat tidak bisa dipakai (mis. akses non-HTTPS). Pilihan ini dicatat pada riwayat kunjungan.</p>
+                                @endif
+                            </div>
                             <button type="button" wire:click="saveTransaction({{ $this->selectedStore->id }})" wire:loading.attr="disabled" @disabled($currentLatitude === null) class="min-h-12 w-full rounded-xl bg-amber-600 px-4 font-bold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-40">Simpan & Selesaikan</button>
                             <div class="rounded-xl border border-dashed border-gray-300 p-3 text-center text-xs text-gray-500 dark:border-white/10">🧾 Tombol cetak struk muncul setelah transaksi berhasil disimpan.</div>
                             <div class="grid grid-cols-1 gap-2">

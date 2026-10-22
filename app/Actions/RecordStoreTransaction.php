@@ -18,7 +18,7 @@ use Illuminate\Validation\ValidationException;
 
 class RecordStoreTransaction
 {
-    public function execute(User $sales, Store $store, Coordinate $position, array $quantities, ?float $accuracy = null, ?int $amountPaid = null, int $debtPayment = 0): StoreVisit
+    public function execute(User $sales, Store $store, Coordinate $position, array $quantities, ?float $accuracy = null, ?int $amountPaid = null, int $debtPayment = 0, ?string $locationNote = null): StoreVisit
     {
         if (! $sales->isSales()) {
             throw ValidationException::withMessages(['authorization' => 'Hanya Sales yang dapat mencatat transaksi toko.']);
@@ -33,7 +33,7 @@ class RecordStoreTransaction
             ];
         })->filter(fn (array $row) => $row['sold'] > 0 || $row['deposited'] > 0 || $row['withdrawn'] > 0)->values();
 
-        return DB::transaction(function () use ($sales, $store, $position, $rows, $accuracy, $amountPaid, $debtPayment): StoreVisit {
+        return DB::transaction(function () use ($sales, $store, $position, $rows, $accuracy, $amountPaid, $debtPayment, $locationNote): StoreVisit {
             $lockedStore = Store::query()->whereKey($store->id)->lockForUpdate()->firstOrFail();
             $openingDebt = max(0, (int) StoreAccountEntry::query()
                 ->where('store_id', $lockedStore->id)
@@ -79,7 +79,10 @@ class RecordStoreTransaction
                 $lockedStore,
                 $position,
                 VisitStatus::Visited,
-                ['location_accuracy' => $accuracy],
+                [
+                    'location_accuracy' => $accuracy,
+                    'exception_reason' => $locationNote,
+                ],
             );
             $locations = app(StockLocationService::class);
             $salesLocation = $locations->forSales($sales);

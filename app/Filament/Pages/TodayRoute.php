@@ -22,6 +22,13 @@ use Illuminate\Validation\ValidationException;
 
 class TodayRoute extends Page
 {
+    /**
+     * Akurasi di atas nilai ini (meter) dianggap bukan GPS asli, misalnya
+     * lokasi berbasis jaringan/IP. Pada akurasi seburuk itu jarak ke toko tidak
+     * dapat dipercaya, sehingga aturan jarak tidak dipakai.
+     */
+    public const IMPRECISE_ACCURACY_METERS = 1000;
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedMap;
 
     protected static ?string $navigationLabel = 'Transaksi Toko';
@@ -40,6 +47,13 @@ class TodayRoute extends Page
 
     public ?float $currentAccuracy = null;
 
+    /**
+     * Diisi bila posisi tidak berasal dari GPS perangkat, misalnya karena
+     * browser memblokir geolocation pada halaman non-HTTPS. Nilainya ikut
+     * dicatat sebagai exception_reason pada kunjungan agar tetap terlacak.
+     */
+    public ?string $locationNote = null;
+
     public array $transactions = [];
 
     public ?int $selectedStoreId = null;
@@ -51,11 +65,23 @@ class TodayRoute extends Page
         return auth()->user()?->isSales() ?? false;
     }
 
-    public function loadNearby(float $latitude, float $longitude, ?float $accuracy = null): void
+    public function loadNearby(float $latitude, float $longitude, ?float $accuracy = null, ?string $note = null): void
     {
         $this->currentLatitude = $latitude;
         $this->currentLongitude = $longitude;
         $this->currentAccuracy = $accuracy;
+
+        // Akurasi di atas ambang ini bukan GPS asli (biasanya lokasi berbasis
+        // jaringan/IP dengan galat puluhan kilometer). Jarak ke toko jadi tidak
+        // bermakna, jadi dicatat sebagai catatan lokasi agar transaksi tidak
+        // ditolak oleh aturan jarak.
+        if ($accuracy !== null && $accuracy > self::IMPRECISE_ACCURACY_METERS) {
+            $kilometers = round($accuracy / 1000, 1);
+            $this->locationNote = "Akurasi GPS rendah (±{$kilometers} km); lokasi tidak presisi";
+        } else {
+            $this->locationNote = $accuracy === null ? ($note ?? 'Lokasi diambil tanpa GPS perangkat') : $note;
+        }
+
         $this->nearbyStores = app(NearbyStoreService::class)
             ->find(auth()->user(), new Coordinate($latitude, $longitude))
             ->map(fn (Store $store) => [
@@ -67,6 +93,41 @@ class TodayRoute extends Page
                 'visited' => $this->route?->routeStores
                     ->firstWhere('store_id', $store->id)?->latestVisit !== null,
             ])->all();
+    }
+
+    /**
+     * Fallback ketika GPS perangkat benar-benar tidak dapat dipakai (mis. halaman
+     * diakses lewat http:// sehingga browser memblokir geolocation). Koordinat
+     * toko dipakai sebagai posisi, dan alasannya dicatat pada kunjungan supaya
+     * data tidak diam-diam dianggap berasal dari GPS.
+     */
+    public function useStoreLocation(int $storeId): void
+    {
+        $store = $this->route?->routeStores->firstWhere('store_id', $storeId)?->store
+            ?? Store::query()->find($storeId);
+
+        if (! $store || $store->latitude === null || $store->longitude === null) {
+            Notification::make()
+                ->title('Koordinat toko belum tersedia')
+                ->body('Minta Admin melengkapi koordinat toko ini.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $this->loadNearby(
+            (float) $store->latitude,
+            (float) $store->longitude,
+            null,
+            'GPS perangkat tidak tersedia; memakai koordinat toko',
+        );
+
+        Notification::make()
+            ->title('Memakai koordinat toko')
+            ->body('GPS perangkat tidak dapat dipakai. Transaksi akan ditandai memakai koordinat toko.')
+            ->warning()
+            ->send();
     }
 
     public function selectStore(int $storeId): void
@@ -91,11 +152,14 @@ class TodayRoute extends Page
             Store::findOrFail($storeId),
             new Coordinate($this->currentLatitude, $this->currentLongitude),
             VisitStatus::from($status),
-            ['location_accuracy' => $this->currentAccuracy, 'exception_reason' => $reason],
+            [
+                'location_accuracy' => $this->currentAccuracy,
+                'exception_reason' => $reason ?? $this->locationNote,
+            ],
         );
         $this->selectedStoreId = null;
         $this->dispatch('store-visited', storeId: $storeId);
-        $this->loadNearby($this->currentLatitude, $this->currentLongitude, $this->currentAccuracy);
+        $this->loadNearby($this->currentLatitude, $this->currentLongitude, $this->currentAccuracy, $this->locationNote);
         Notification::make()->title('Hasil kunjungan tersimpan')->success()->send();
     }
 
@@ -139,6 +203,7 @@ class TodayRoute extends Page
                 $this->currentAccuracy,
                 (int) $payment,
                 (int) $debtPayment,
+                $this->locationNote,
             );
         } catch (ValidationException $exception) {
             Notification::make()
@@ -155,7 +220,7 @@ class TodayRoute extends Page
         $this->lastVisitId = $visit->id;
         $this->selectedStoreId = null;
         $this->dispatch('store-visited', storeId: $storeId);
-        $this->loadNearby($this->currentLatitude, $this->currentLongitude, $this->currentAccuracy);
+        $this->loadNearby($this->currentLatitude, $this->currentLongitude, $this->currentAccuracy, $this->locationNote);
         Notification::make()->title('Transaksi toko dan kunjungan tersimpan')->success()->send();
     }
 

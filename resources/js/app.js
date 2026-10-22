@@ -507,6 +507,10 @@ window.salesRouteWorkspace = (config) => ({
     message: '',
     locating: false,
     init() {
+        // Ambil lokasi otomatis saat halaman dibuka supaya tombol simpan tidak
+        // terkunci menunggu pengguna menekan tombol GPS secara manual.
+        this.$nextTick(() => this.autoLocate());
+
         if (!config.styleUrl) {
             this.$refs.map.innerHTML = '<div class="p-6 text-sm">Peta belum dikonfigurasi. Daftar toko tetap dapat digunakan.</div>';
             return;
@@ -573,10 +577,49 @@ window.salesRouteWorkspace = (config) => ({
         feature.properties.visited = true;
         this.map?.getSource('sales-route-stores')?.setData(this.collection);
     },
+    autoLocate() {
+        if (!window.isSecureContext || !('geolocation' in navigator)) {
+            this.message = 'GPS tidak aktif: halaman harus diakses lewat HTTPS. '
+                + 'Gunakan tombol "Pakai koordinat toko" untuk melanjutkan transaksi.';
+            return;
+        }
+
+        // maximumAge besar: memakai posisi terakhir bila masih baru, agar cepat.
+        navigator.geolocation.getCurrentPosition(
+            position => this.applyPosition(position),
+            () => {
+                this.message = 'GPS belum terdeteksi. Tekan "Lokasi Saya" untuk mencoba lagi, '
+                    + 'atau "Pakai koordinat toko" untuk melanjutkan.';
+            },
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 120000 },
+        );
+    },
+    async applyPosition(position) {
+        const coordinates = [position.coords.longitude, position.coords.latitude];
+        if (this.map) {
+            if (!this.userMarker) {
+                this.userMarker = new maplibregl.Marker({ color: '#15803d' }).setLngLat(coordinates).addTo(this.map);
+            } else this.userMarker.setLngLat(coordinates);
+            this.map.flyTo({ center: coordinates, zoom: 15 });
+        }
+        this.message = `Lokasi ditemukan · akurasi ±${Math.round(position.coords.accuracy)} meter`;
+        await this.$wire.loadNearby(position.coords.latitude, position.coords.longitude, position.coords.accuracy);
+    },
     locate(wire) {
         this.locating = true;
         this.message = 'Mengambil lokasi dengan akurasi tinggi...';
-        navigator.geolocation.getCurrentPosition(async position => {
+
+        // Browser hanya mengizinkan geolocation pada secure context (HTTPS atau
+        // localhost). Tanpa ini GPS tidak akan pernah muncul dan pengguna hanya
+        // melihat pesan error yang membingungkan.
+        if (!window.isSecureContext || !('geolocation' in navigator)) {
+            this.locating = false;
+            this.message = 'GPS diblokir browser karena halaman tidak diakses lewat HTTPS. '
+                + 'Gunakan tombol "Pakai koordinat toko" atau buka aplikasi lewat https://.';
+            return;
+        }
+
+        const onSuccess = async position => {
             const coordinates = [position.coords.longitude, position.coords.latitude];
             if (!this.userMarker) {
                 this.userMarker = new maplibregl.Marker({ color: '#15803d' }).setLngLat(coordinates).addTo(this.map);
@@ -585,10 +628,35 @@ window.salesRouteWorkspace = (config) => ({
             this.message = `Lokasi ditemukan · akurasi ±${Math.round(position.coords.accuracy)} meter`;
             await wire.loadNearby(position.coords.latitude, position.coords.longitude, position.coords.accuracy);
             this.locating = false;
-        }, error => {
+        };
+
+        const describeError = error => {
+            switch (error?.code) {
+                case 1: return 'Izin lokasi ditolak. Buka pengaturan situs di browser lalu izinkan Lokasi.';
+                case 2: return 'Lokasi tidak tersedia. Pastikan GPS perangkat aktif dan ada sinyal.';
+                case 3: return 'Waktu pengambilan lokasi habis. Coba lagi di tempat terbuka.';
+                default: return error?.message || 'Lokasi tidak dapat diambil.';
+            }
+        };
+
+        const fallbackToNetwork = () => {
+            // Percobaan kedua tanpa akurasi tinggi: memakai lokasi jaringan/WiFi.
+            navigator.geolocation.getCurrentPosition(onSuccess, error => {
+                this.locating = false;
+                this.message = `${describeError(error)} Anda tetap dapat memakai tombol "Pakai koordinat toko".`;
+            }, { enableHighAccuracy: false, timeout: 20000, maximumAge: 300000 });
+        };
+
+        navigator.geolocation.getCurrentPosition(onSuccess, error => {
+            if (error?.code === 3) return fallbackToNetwork();
             this.locating = false;
-            this.message = `Lokasi tidak dapat diambil: ${error.message}`;
-        }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 15000 });
+            this.message = `${describeError(error)} Anda tetap dapat memakai tombol "Pakai koordinat toko".`;
+        }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+    },
+    async useStoreLocation(wire, storeId) {
+        this.message = 'Memakai koordinat toko sebagai posisi...';
+        await wire.useStoreLocation(storeId);
+        this.message = 'Posisi memakai koordinat toko (GPS perangkat tidak dipakai).';
     },
     async visit(wire, storeId, status, needsReason = false) {
         const reason = needsReason ? window.prompt('Tuliskan alasan kunjungan di luar rute:') : null;

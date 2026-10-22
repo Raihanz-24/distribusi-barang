@@ -13,6 +13,13 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [SecurityHeaders::class]);
+
+        // Saat diakses lewat reverse proxy HTTPS (tools/dev-https.cjs), percayai
+        // header X-Forwarded-* agar URL aset ikut https dan host yang dipakai browser.
+        $middleware->trustProxies(at: '*');
+
+        // Aplikasi hanya punya login lewat panel Filament, tidak ada route bernama "login".
+        $middleware->redirectGuestsTo(fn () => route('filament.admin.auth.login'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

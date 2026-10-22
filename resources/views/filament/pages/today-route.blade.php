@@ -114,6 +114,11 @@
                                 @php($preview = $this->transactionPreview($this->selectedStore->id, $product->id))
                                 <div class="rounded-xl border border-gray-200 p-4 dark:border-white/10" wire:key="product-{{ $this->selectedStore->id }}-{{ $product->id }}">
                                     <div class="mb-3 font-bold">{{ $product->name }}</div>
+                                    @if (! empty($preview['price_missing']))
+                                        <div class="mb-3 rounded-lg border border-red-300 bg-red-50 p-2 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
+                                            ⚠️ {{ $preview['price_missing'] }}
+                                        </div>
+                                    @endif
                                     <div class="grid gap-3 sm:grid-cols-3">
                                         <label class="text-sm"><span class="mb-1.5 block text-gray-500">Produk laku (bungkus)</span><input type="number" min="0" inputmode="numeric" wire:model.live.debounce.350ms="transactions.{{ $this->selectedStore->id }}.products.{{ $product->id }}.sold" class="fi-input block w-full" placeholder="0"></label>
                                         <label class="text-sm"><span class="mb-1.5 block text-gray-500">Titip baru (bungkus)</span><input type="number" min="0" inputmode="numeric" wire:model="transactions.{{ $this->selectedStore->id }}.products.{{ $product->id }}.deposited" class="fi-input block w-full" placeholder="0"></label>

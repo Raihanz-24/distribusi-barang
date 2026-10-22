@@ -163,15 +163,26 @@ class TodayRoute extends Page
         $sold = (int) data_get($this->transactions, "{$storeId}.products.{$productId}.sold", 0);
         $product = $this->products->firstWhere('id', $productId);
 
-        return $product
-            ? app(StoreSettlementCalculator::class)->calculate($product, $sold)
-            : ['store_fee' => 0, 'amount_due' => 0];
+        if (! $product) {
+            return ['store_fee' => 0, 'amount_due' => 0];
+        }
+
+        try {
+            return app(StoreSettlementCalculator::class)->calculate($product, $sold);
+        } catch (ValidationException $exception) {
+            // Produk tanpa harga aktif TIDAK boleh membuat seluruh halaman gagal
+            // dimuat. Tampilkan pratinjau nol; pesan asli muncul saat menyimpan.
+            return [
+                'store_fee' => 0,
+                'amount_due' => 0,
+                'price_missing' => collect($exception->errors())->flatten()->first(),
+            ];
+        }
     }
 
     public function transactionSummary(int $storeId): array
     {
-        $amountDue = $this->products->sum(fn (Product $product) => $this->transactionPreview($storeId, $product->id)['amount_due']);
-        $payment = data_get($this->transactions, "{$storeId}.payment_amount");
+        $amountDue = $this->products->sum(fn (Product $product) => $this->transactionPreview($storeId, $product->id)['amount_due']);        $payment = data_get($this->transactions, "{$storeId}.payment_amount");
         $debtPayment = data_get($this->transactions, "{$storeId}.debt_payment_amount");
         $amountPaid = is_numeric($payment) ? max(0, (int) $payment) : 0;
         $oldDebtPaid = is_numeric($debtPayment) ? max(0, (int) $debtPayment) : 0;

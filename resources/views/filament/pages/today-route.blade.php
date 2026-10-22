@@ -151,24 +151,51 @@
             @endif
 
             @if ($this->receiptUrl)
-                <section x-data="pancorPrinter" class="flex flex-col gap-3 rounded-2xl border-2 border-green-500/40 bg-green-500/10 p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h3 class="text-lg font-bold text-green-800 dark:text-green-300">✓ Transaksi berhasil disimpan</h3>
-                        <p class="text-sm text-green-700/80 dark:text-green-400">Pembayaran dan hutang toko telah tercatat. Cetak struk langsung ke printer thermal.</p>
-                        <p x-show="status" x-text="status" class="mt-1 text-xs font-semibold text-green-800 dark:text-green-300"></p>
-                        <p x-show="lastError" x-text="lastError" class="mt-1 text-xs font-semibold text-red-700 dark:text-red-400"></p>
-                    </div>
-                    <div class="flex flex-col gap-2 sm:flex-row">
-                        <button type="button" x-on:click="print('{{ $this->escposUrl }}')" x-bind:disabled="busy"
-                            class="inline-flex min-h-12 items-center justify-center rounded-xl bg-green-700 px-6 text-sm font-bold text-white shadow-lg shadow-green-900/15 hover:bg-green-800 disabled:opacity-50">
-                            <span x-show="! busy">🖨️ Cetak Struk</span>
-                            <span x-show="busy">Mencetak...</span>
-                        </button>
+                <section x-data="pancorPrinter" class="flex flex-col gap-3 rounded-2xl border-2 border-green-500/40 bg-green-500/10 p-5 shadow-sm">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h3 class="text-lg font-bold text-green-800 dark:text-green-300">✓ Transaksi berhasil disimpan</h3>
+                            <p class="text-sm text-green-700/80 dark:text-green-400">Pembayaran dan hutang toko telah tercatat. Cetak struk langsung ke printer thermal.</p>
+                            <p x-show="status" x-text="status" class="mt-1 text-xs font-semibold text-green-800 dark:text-green-300"></p>
+                            <p x-show="lastError" x-text="lastError" class="mt-1 text-xs font-semibold text-red-700 dark:text-red-400"></p>
+                        </div>
                         <a href="{{ $this->receiptUrl }}" target="_blank"
-                            class="inline-flex min-h-12 items-center justify-center rounded-xl border border-green-700/30 px-4 text-sm font-semibold text-green-800 hover:bg-green-700/10 dark:text-green-300">
+                            class="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-green-700/30 px-4 text-sm font-semibold text-green-800 hover:bg-green-700/10 dark:text-green-300">
                             Lihat Struk
                         </a>
                     </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-xs font-semibold uppercase tracking-wide text-green-800/70 dark:text-green-300/70">Jalur cetak</span>
+                        <select x-model="channel" x-on:change="setChannel(channel)"
+                            class="min-h-10 rounded-xl border border-green-700/30 bg-white px-3 text-sm font-semibold text-green-900 dark:bg-gray-900 dark:text-green-200">
+                            <option value="auto">Otomatis</option>
+                            <option value="agent">Print agent (Windows)</option>
+                            <option value="usb">USB</option>
+                            <option value="bluetooth">Bluetooth (BLE)</option>
+                        </select>
+                    </div>
+
+                    <div class="flex flex-col gap-2 sm:flex-row">
+                        <button type="button" x-on:click="print('{{ $this->escposUrl }}')" x-bind:disabled="busy"
+                            class="inline-flex min-h-12 flex-1 items-center justify-center rounded-xl bg-green-700 px-6 text-sm font-bold text-white shadow-lg shadow-green-900/15 hover:bg-green-800 disabled:opacity-50">
+                            <span x-show="! busy">🖨️ Cetak Struk</span>
+                            <span x-show="busy">Mencetak...</span>
+                        </button>
+                        <button type="button" x-on:click="print('{{ $this->escposUrl }}', 'usb')" x-bind:disabled="busy"
+                            class="inline-flex min-h-12 items-center justify-center rounded-xl bg-green-700/10 px-4 text-sm font-semibold text-green-800 hover:bg-green-700/20 disabled:opacity-50 dark:text-green-300">
+                            🔌 USB
+                        </button>
+                        <button type="button" x-on:click="print('{{ $this->escposUrl }}', 'bluetooth')" x-bind:disabled="busy"
+                            class="inline-flex min-h-12 items-center justify-center rounded-xl bg-green-700/10 px-4 text-sm font-semibold text-green-800 hover:bg-green-700/20 disabled:opacity-50 dark:text-green-300">
+                            📶 Bluetooth
+                        </button>
+                    </div>
+
+                    <p class="text-xs text-green-800/70 dark:text-green-300/70">
+                        Bluetooth hanya untuk printer <strong>BLE</strong>. Jika printer tidak muncul di dialog,
+                        berarti memakai Bluetooth Classic (SPP) — gunakan kabel USB atau print agent.
+                    </p>
                 </section>
             @endif
 

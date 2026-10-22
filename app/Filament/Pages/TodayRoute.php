@@ -17,6 +17,7 @@ use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Database\QueryException;
 use Illuminate\Validation\ValidationException;
 
 class TodayRoute extends Page
@@ -182,11 +183,21 @@ class TodayRoute extends Page
 
     public function transactionSummary(int $storeId): array
     {
-        $amountDue = $this->products->sum(fn (Product $product) => $this->transactionPreview($storeId, $product->id)['amount_due']);        $payment = data_get($this->transactions, "{$storeId}.payment_amount");
+        $amountDue = $this->products->sum(fn (Product $product) => $this->transactionPreview($storeId, $product->id)['amount_due']);
+        $payment = data_get($this->transactions, "{$storeId}.payment_amount");
         $debtPayment = data_get($this->transactions, "{$storeId}.debt_payment_amount");
         $amountPaid = is_numeric($payment) ? max(0, (int) $payment) : 0;
         $oldDebtPaid = is_numeric($debtPayment) ? max(0, (int) $debtPayment) : 0;
-        $openingDebt = Store::query()->find($storeId)?->outstanding_debt ?? 0;
+
+        // outstanding_debt adalah accessor yang membaca tabel store_account_entries.
+        // Bila tabel/kolom itu belum ada (migrasi server tertinggal), halaman tidak
+        // boleh gagal dimuat total; tampilkan hutang lama sebagai 0.
+        try {
+            $openingDebt = Store::query()->find($storeId)?->outstanding_debt ?? 0;
+        } catch (QueryException $exception) {
+            report($exception);
+            $openingDebt = 0;
+        }
 
         return [
             'amount_due' => $amountDue,

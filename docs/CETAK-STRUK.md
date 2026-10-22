@@ -40,11 +40,30 @@ baru mengambil byte struk dari server.
 
 ### UUID BLE yang dicoba
 
-Service: `18f0`, `ff00`, `ffe0`, `fff0`, `49535343-fe7d-4ae5-8fa9-9fafd205e455`,
-`e7810a71-73ae-499d-8c15-faa9aef0c3f2`.
-Characteristic tulis: `2af1`, `ff02`, `ffe1`, `49535343-8841-43f4-a8d4-ecbe34729bb3`.
-Jika tidak ada yang cocok, aplikasi memindai seluruh layanan dan memakai
-characteristic pertama yang mendukung `write`.
+Dicoba berurutan (pasangan service → characteristic tulis):
+
+| Service | Characteristic tulis | Printer umum |
+|---|---|---|
+| `18F0` | `2AF1` | Epson, generik |
+| `e7810a71-73ae-499d-8c15-faa9aef0c3f2` | `bef8d6c9-9c21-4c9e-b632-bd58c1009f9f` | Gprinter, Xprinter, Munbyn |
+| `49535343-fe7d-4ae5-8fa9-9fafd205e455` | `49535343-8841-43f4-a8d4-ecbe34729bb3` | Microchip ISSC, GoojPRT PT-210 |
+| `FFE0` | `FFE1` | HM-10 / Telink |
+| `FF00` | `FF02` | vendor generik |
+| `FFF0` | `FFF1` | vendor generik |
+| `FEE7` | `FEE8` | vendor generik |
+
+Jika characteristic bawaan tidak ada, semua characteristic pada service tersebut
+dipindai dan yang pertama mendukung `write` dipakai. Bila semua pasangan gagal,
+seluruh layanan dipindai sebagai upaya terakhir.
+
+Paket dikirim **20 byte** per tulis dengan jeda 15ms. Ukuran ini paling aman;
+paket lebih besar dapat membuat struk tercetak acak pada modul tertentu.
+
+### Tombol Diagnosa
+
+Tombol **🔍 Diagnosa** mencetak tabel service/characteristic printer ke console
+browser (F12). Gunakan ini bila Bluetooth tersambung tetapi struk tidak keluar —
+baris dengan `write: true` adalah characteristic yang bisa dipakai.
 
 ## Windows: menjalankan print agent
 

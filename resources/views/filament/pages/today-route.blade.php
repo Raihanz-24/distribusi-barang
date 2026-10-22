@@ -190,6 +190,11 @@
                             class="inline-flex min-h-12 items-center justify-center rounded-xl bg-green-700/10 px-4 text-sm font-semibold text-green-800 hover:bg-green-700/20 disabled:opacity-50 dark:text-green-300">
                             📶 Bluetooth
                         </button>
+                        <button type="button" x-on:click="diagnose()" x-bind:disabled="busy"
+                            title="Tampilkan service & characteristic printer di console (F12)"
+                            class="inline-flex min-h-12 items-center justify-center rounded-xl border border-green-700/30 px-3 text-xs font-semibold text-green-800 hover:bg-green-700/10 disabled:opacity-50 dark:text-green-300">
+                            🔍 Diagnosa
+                        </button>
                     </div>
 
                     <p class="text-xs text-green-800/70 dark:text-green-300/70">

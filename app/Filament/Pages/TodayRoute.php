@@ -279,4 +279,11 @@ class TodayRoute extends Page
             ? route('sales.receipts.show', ['visit' => $this->lastVisitId])
             : null;
     }
+
+    public function getEscposUrlProperty(): ?string
+    {
+        return $this->lastVisitId
+            ? route('sales.receipts.escpos', ['visit' => $this->lastVisitId])
+            : null;
+    }
 }

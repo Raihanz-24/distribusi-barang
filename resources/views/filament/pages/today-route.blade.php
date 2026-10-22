@@ -151,9 +151,24 @@
             @endif
 
             @if ($this->receiptUrl)
-                <section class="flex flex-col gap-3 rounded-2xl border-2 border-green-500/40 bg-green-500/10 p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-                    <div><h3 class="text-lg font-bold text-green-800 dark:text-green-300">✓ Transaksi berhasil disimpan</h3><p class="text-sm text-green-700/80 dark:text-green-400">Pembayaran dan hutang toko telah tercatat. Struk berukuran 58 mm siap dicetak.</p></div>
-                    <a href="{{ $this->receiptUrl }}" target="_blank" class="inline-flex min-h-12 items-center justify-center rounded-xl bg-green-700 px-6 text-sm font-bold text-white shadow-lg shadow-green-900/15 hover:bg-green-800">🧾 Cetak Struk Pembayaran</a>
+                <section x-data="pancorPrinter" class="flex flex-col gap-3 rounded-2xl border-2 border-green-500/40 bg-green-500/10 p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h3 class="text-lg font-bold text-green-800 dark:text-green-300">✓ Transaksi berhasil disimpan</h3>
+                        <p class="text-sm text-green-700/80 dark:text-green-400">Pembayaran dan hutang toko telah tercatat. Cetak struk langsung ke printer thermal.</p>
+                        <p x-show="status" x-text="status" class="mt-1 text-xs font-semibold text-green-800 dark:text-green-300"></p>
+                        <p x-show="lastError" x-text="lastError" class="mt-1 text-xs font-semibold text-red-700 dark:text-red-400"></p>
+                    </div>
+                    <div class="flex flex-col gap-2 sm:flex-row">
+                        <button type="button" x-on:click="print('{{ $this->escposUrl }}')" x-bind:disabled="busy"
+                            class="inline-flex min-h-12 items-center justify-center rounded-xl bg-green-700 px-6 text-sm font-bold text-white shadow-lg shadow-green-900/15 hover:bg-green-800 disabled:opacity-50">
+                            <span x-show="! busy">🖨️ Cetak Struk</span>
+                            <span x-show="busy">Mencetak...</span>
+                        </button>
+                        <a href="{{ $this->receiptUrl }}" target="_blank"
+                            class="inline-flex min-h-12 items-center justify-center rounded-xl border border-green-700/30 px-4 text-sm font-semibold text-green-800 hover:bg-green-700/10 dark:text-green-300">
+                            Lihat Struk
+                        </a>
+                    </div>
                 </section>
             @endif
 

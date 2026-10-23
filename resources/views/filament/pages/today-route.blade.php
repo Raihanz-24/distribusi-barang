@@ -173,19 +173,17 @@
                 </section>
             @endif
 
-            @if ($this->receiptUrl)
+            {{-- Panel cetak: tampil setiap kali ada transaksi selesai pada hari ini,
+                 sehingga struk transaksi mana pun dapat langsung dicetak. --}}
+            @if (! empty($this->completedVisits))
                 <section x-data="pancorPrinter" class="flex flex-col gap-3 rounded-2xl border-2 border-green-500/40 bg-green-500/10 p-5 shadow-sm">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                            <h3 class="text-lg font-bold text-green-800 dark:text-green-300">✓ Transaksi berhasil disimpan</h3>
-                            <p class="text-sm text-green-700/80 dark:text-green-400">Pembayaran dan hutang toko telah tercatat. Cetak struk langsung ke printer thermal.</p>
+                            <h3 class="text-lg font-bold text-green-800 dark:text-green-300">✓ Transaksi selesai — cetak struk</h3>
+                            <p class="text-sm text-green-700/80 dark:text-green-400">Pilih transaksi lalu cetak langsung ke printer thermal.</p>
                             <p x-show="status" x-text="status" class="mt-1 text-xs font-semibold text-green-800 dark:text-green-300"></p>
                             <p x-show="lastError" x-text="lastError" class="mt-1 text-xs font-semibold text-red-700 dark:text-red-400"></p>
                         </div>
-                        <a href="{{ $this->receiptUrl }}" target="_blank"
-                            class="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-green-700/30 px-4 text-sm font-semibold text-green-800 hover:bg-green-700/10 dark:text-green-300">
-                            Lihat Struk
-                        </a>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
@@ -199,25 +197,41 @@
                         </select>
                     </div>
 
-                    <div class="flex flex-col gap-2 sm:flex-row">
-                        <button type="button" x-on:click="print('{{ $this->escposUrl }}')" x-bind:disabled="busy"
-                            class="inline-flex min-h-12 flex-1 items-center justify-center rounded-xl bg-green-700 px-6 text-sm font-bold text-white shadow-lg shadow-green-900/15 hover:bg-green-800 disabled:opacity-50">
-                            <span x-show="! busy">🖨️ Cetak Struk</span>
-                            <span x-show="busy">Mencetak...</span>
-                        </button>
-                        <button type="button" x-on:click="print('{{ $this->escposUrl }}', 'usb')" x-bind:disabled="busy"
-                            class="inline-flex min-h-12 items-center justify-center rounded-xl bg-green-700/10 px-4 text-sm font-semibold text-green-800 hover:bg-green-700/20 disabled:opacity-50 dark:text-green-300">
-                            🔌 USB
-                        </button>
-                        <button type="button" x-on:click="print('{{ $this->escposUrl }}', 'bluetooth')" x-bind:disabled="busy"
-                            class="inline-flex min-h-12 items-center justify-center rounded-xl bg-green-700/10 px-4 text-sm font-semibold text-green-800 hover:bg-green-700/20 disabled:opacity-50 dark:text-green-300">
-                            📶 Bluetooth
-                        </button>
-                        <button type="button" x-on:click="diagnose()" x-bind:disabled="busy"
-                            title="Tampilkan service & characteristic printer di console (F12)"
-                            class="inline-flex min-h-12 items-center justify-center rounded-xl border border-green-700/30 px-3 text-xs font-semibold text-green-800 hover:bg-green-700/10 disabled:opacity-50 dark:text-green-300">
-                            🔍 Diagnosa
-                        </button>
+                    <div class="space-y-2">
+                        @foreach ($this->completedVisits as $visit)
+                            <div wire:key="visit-{{ $visit['id'] }}"
+                                class="flex flex-col gap-2 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between {{ $lastVisitId === $visit['id'] ? 'border-green-600 bg-white dark:bg-gray-900' : 'border-green-700/20 bg-white/60 dark:bg-gray-900/60' }}">
+                                <div class="min-w-0">
+                                    <div class="truncate text-sm font-bold text-gray-900 dark:text-white">
+                                        {{ $visit['store'] }}
+                                        @if ($lastVisitId === $visit['id'])
+                                            <span class="ml-1 rounded bg-green-600 px-1.5 py-0.5 text-[10px] font-bold text-white">BARU</span>
+                                        @endif
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        {{ $visit['time'] }} · Rp {{ number_format($visit['amount_due'], 0, ',', '.') }}
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <button type="button" x-on:click="print('{{ $visit['escpos_url'] }}')" x-bind:disabled="busy"
+                                        class="inline-flex min-h-10 items-center justify-center rounded-xl bg-green-700 px-4 text-sm font-bold text-white hover:bg-green-800 disabled:opacity-50">
+                                        🖨️ Cetak
+                                    </button>
+                                    <button type="button" x-on:click="print('{{ $visit['escpos_url'] }}', 'usb')" x-bind:disabled="busy"
+                                        class="inline-flex min-h-10 items-center justify-center rounded-xl bg-green-700/10 px-3 text-xs font-semibold text-green-800 hover:bg-green-700/20 disabled:opacity-50 dark:text-green-300">
+                                        🔌 USB
+                                    </button>
+                                    <button type="button" x-on:click="print('{{ $visit['escpos_url'] }}', 'bluetooth')" x-bind:disabled="busy"
+                                        class="inline-flex min-h-10 items-center justify-center rounded-xl bg-green-700/10 px-3 text-xs font-semibold text-green-800 hover:bg-green-700/20 disabled:opacity-50 dark:text-green-300">
+                                        📶 Bluetooth
+                                    </button>
+                                    <a href="{{ $visit['receipt_url'] }}" target="_blank"
+                                        class="inline-flex min-h-10 items-center justify-center rounded-xl border border-green-700/30 px-3 text-xs font-semibold text-green-800 hover:bg-green-700/10 dark:text-green-300">
+                                        Lihat
+                                    </a>
+                                </div>
+                            </div>
+                        @endforeach
                     </div>
 
                     <p class="text-xs text-green-800/70 dark:text-green-300/70">

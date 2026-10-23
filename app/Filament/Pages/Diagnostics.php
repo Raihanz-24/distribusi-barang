@@ -34,6 +34,15 @@ class Diagnostics extends Page
     }
 
     /**
+     * Halaman ini hanya untuk keperluan pengecekan internal dan tidak
+     * ditampilkan pada menu navigasi.
+     */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
+    /**
      * @return array<int, array{label: string, value: string, status: string}>
      */
     public function getChecksProperty(): array

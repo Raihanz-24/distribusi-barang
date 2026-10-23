@@ -10,6 +10,7 @@ use App\Enums\VisitStatus;
 use App\Models\DailyRoute;
 use App\Models\Product;
 use App\Models\Store;
+use App\Models\StoreVisit;
 use App\Services\NearbyStoreService;
 use App\Services\ActiveSalesRoute;
 use App\Services\StoreSettlementCalculator;
@@ -372,5 +373,39 @@ class TodayRoute extends Page
         return $this->lastVisitId
             ? route('sales.receipts.escpos', ['visit' => $this->lastVisitId])
             : null;
+    }
+
+    /**
+     * Semua transaksi yang sudah selesai pada hari ini, sehingga setiap struk
+     * dapat dicetak ulang kapan saja - bukan hanya transaksi terakhir.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getCompletedVisitsProperty(): array
+    {
+        $sales = auth()->user();
+
+        if (! $sales) {
+            return [];
+        }
+
+        return StoreVisit::query()
+            ->with('store')
+            ->where('sales_id', $sales->id)
+            ->whereNull('reversed_at')
+            ->whereNotNull('completed_at')
+            ->whereDate('completed_at', today())
+            ->latest('completed_at')
+            ->limit(30)
+            ->get()
+            ->map(fn (StoreVisit $visit): array => [
+                'id' => $visit->id,
+                'store' => $visit->store?->name ?? 'Toko',
+                'time' => $visit->completed_at?->format('H:i') ?? '-',
+                'amount_due' => $visit->amount_due,
+                'receipt_url' => route('sales.receipts.show', ['visit' => $visit->id]),
+                'escpos_url' => route('sales.receipts.escpos', ['visit' => $visit->id]),
+            ])
+            ->all();
     }
 }

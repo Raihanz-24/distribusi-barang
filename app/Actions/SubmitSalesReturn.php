@@ -19,10 +19,14 @@ use Illuminate\Validation\ValidationException;
 
 class SubmitSalesReturn
 {
-    public function execute(StockTransfer $pickup, User $sales): DailySalesSettlement
+    /**
+     * @param  User  $actor  Sales pemilik pengambilan, atau Admin yang mengajukan
+     *                       atas nama Sales (mis. saat Admin mensimulasikan alur).
+     */
+    public function execute(StockTransfer $pickup, User $actor): DailySalesSettlement
     {
-        if (! $sales->isSales() || $pickup->sales_id !== $sales->id) {
-            throw ValidationException::withMessages(['authorization' => 'Pengajuan hanya dapat dibuat oleh Sales pemilik transaksi.']);
+        if (! $actor->isAdmin() && (! $actor->isSales() || $pickup->sales_id !== $actor->id)) {
+            throw ValidationException::withMessages(['authorization' => 'Pengajuan hanya dapat dibuat oleh Sales pemilik transaksi atau Admin.']);
         }
 
         if ($pickup->transfer_type !== StockTransferType::IssueToSales || $pickup->status !== StockTransferStatus::Received) {
@@ -33,7 +37,9 @@ class SubmitSalesReturn
             throw ValidationException::withMessages(['status' => 'Pengajuan pengembalian sudah pernah dibuat.']);
         }
 
-        return DB::transaction(function () use ($pickup, $sales): DailySalesSettlement {
+        $sales = User::query()->findOrFail($pickup->sales_id);
+
+        return DB::transaction(function () use ($pickup, $sales, $actor): DailySalesSettlement {
             $route = DailyRoute::query()
                 ->withCount([
                     'routeStores as unfinished_stores_count' => fn ($query) => $query->whereDoesntHave('latestVisit'),
@@ -68,7 +74,7 @@ class SubmitSalesReturn
                 'destination_location_id' => $adminWarehouse->id,
                 'sales_id' => $sales->id,
                 'status' => StockTransferStatus::PendingApproval,
-                'created_by' => $sales->id,
+                'created_by' => $actor->id,
                 'notes' => 'Pengajuan pengembalian stok setelah kunjungan toko.',
             ]);
 
@@ -110,13 +116,16 @@ class SubmitSalesReturn
             app(AuditLogger::class)->record(
                 'distribution.closing_submitted',
                 $settlement,
-                $sales,
+                $actor,
                 newValues: [
                     'expected_cash' => $collection,
                     'return_transfer_id' => $return->id,
                     'route_id' => $route->id,
+                    'submitted_by_admin' => $actor->isAdmin(),
                 ],
-                description: 'Sales mengajukan pemeriksaan closing harian.',
+                description: $actor->isAdmin()
+                    ? 'Admin mengajukan pemeriksaan closing harian atas nama Sales.'
+                    : 'Sales mengajukan pemeriksaan closing harian.',
             );
 
             return $settlement;

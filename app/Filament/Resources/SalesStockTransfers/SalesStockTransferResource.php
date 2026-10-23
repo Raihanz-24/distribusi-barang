@@ -35,6 +35,15 @@ class SalesStockTransferResource extends StockTransferResource
         return StockTransferType::IssueToSales->value;
     }
 
+    /**
+     * Hanya pengiriman stok ke Sales yang boleh dibuat lewat form. Pengembalian
+     * dihitung otomatis oleh sistem agar tidak ada angka yang diketik manual.
+     */
+    protected static function creatableTransferTypes(): array
+    {
+        return [StockTransferType::IssueToSales->value];
+    }
+
     public static function getPages(): array
     {
         return [

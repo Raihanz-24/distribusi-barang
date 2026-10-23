@@ -65,7 +65,7 @@ class StockTransferResource extends Resource
                         ->placeholder('Dibuat otomatis'),
                     Select::make('transfer_type')
                         ->label('Jenis transfer')
-                        ->options(static::transferTypeOptions())
+                        ->options(static::creatableTransferTypeOptions())
                         ->default(static::defaultTransferType())
                         ->required()
                         ->live()
@@ -298,15 +298,19 @@ class StockTransferResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Selesaikan pekerjaan hari ini?')
                     ->modalDescription('Seluruh transaksi toko, tagihan final, dan sisa stok akan dikunci lalu diajukan kepada Admin.')
-                    ->visible(fn (StockTransfer $record) => auth()->user()->isSales()
-                        && $record->sales_id === auth()->id()
+                    ->visible(fn (StockTransfer $record) => (auth()->user()->isSales() && $record->sales_id === auth()->id()
+                            || auth()->user()->isAdmin())
                         && $record->transfer_type === StockTransferType::IssueToSales
                         && $record->status === StockTransferStatus::Received
                         && $record->returnTransfer === null)
                     ->action(function (StockTransfer $record): void {
                         try {
-                            app(SubmitSalesReturn::class)->execute($record, auth()->user());
-                            Notification::make()->title('Pengajuan dikirim kepada Admin')->success()->send();
+                            $settlement = app(SubmitSalesReturn::class)->execute($record, auth()->user());
+                            Notification::make()
+                                ->title('Pengajuan dikirim kepada Admin')
+                                ->body('Sisa stok dihitung sistem: '.$settlement->returnTransfer->items->sum('quantity_issued').' bungkus.')
+                                ->success()
+                                ->send();
                         } catch (ValidationException $exception) {
                             Notification::make()
                                 ->title('Pengajuan tidak dapat dibuat')
@@ -433,6 +437,16 @@ class StockTransferResource extends Resource
         return [StockTransferType::WarehouseTransfer->value];
     }
 
+    /**
+     * Jenis transfer yang boleh dibuat lewat form. Pengembalian dari Sales
+     * TIDAK boleh dibuat manual: jumlahnya harus dihitung sistem dari sisa stok
+     * Sales (lihat SubmitSalesReturn), supaya angka tidak bisa diketik asal.
+     */
+    protected static function creatableTransferTypes(): array
+    {
+        return static::allowedTransferTypes();
+    }
+
     protected static function defaultTransferType(): string
     {
         return StockTransferType::WarehouseTransfer->value;
@@ -442,6 +456,19 @@ class StockTransferResource extends Resource
     {
         return collect(StockTransferType::cases())
             ->filter(fn (StockTransferType $type) => in_array($type->value, static::allowedTransferTypes(), true))
+            ->mapWithKeys(fn (StockTransferType $type) => [$type->value => $type->label()])
+            ->all();
+    }
+
+    /**
+     * Pilihan jenis transfer pada form pembuatan. Pengembalian dari Sales
+     * sengaja tidak dicantumkan karena jumlahnya wajib dihitung sistem dari
+     * sisa stok Sales, bukan diketik manual.
+     */
+    protected static function creatableTransferTypeOptions(): array
+    {
+        return collect(StockTransferType::cases())
+            ->filter(fn (StockTransferType $type) => in_array($type->value, static::creatableTransferTypes(), true))
             ->mapWithKeys(fn (StockTransferType $type) => [$type->value => $type->label()])
             ->all();
     }

@@ -21,10 +21,23 @@
     @endif
 
     <div class="rounded-xl border border-gray-200 p-4 dark:border-white/10">
-        <h3 class="mb-3 font-semibold">Sisa yang dikembalikan</h3>
+        <h3 class="mb-1 font-semibold">Sisa yang dikembalikan</h3>
+        <p class="mb-3 text-xs text-gray-500">Jumlah dihitung sistem dari sisa stok Sales setelah titipan &amp; penjualan. Angka di kiri adalah jumlah yang diterima Admin (setelah pemeriksaan).</p>
         @forelse ($transfer->items as $item)
+            @php($expected = (int) $item->quantity_issued)
+            @php($received = $item->quantity_received)
             <div class="flex justify-between border-b border-gray-100 py-2 last:border-0 dark:border-white/5">
-                <span>{{ $item->product->name }}</span><strong>{{ number_format($item->quantity_received ?? $item->quantity_issued) }} / {{ number_format($item->quantity_issued) }} bungkus</strong>
+                <span>{{ $item->product->name }}</span>
+                <strong>
+                    @if ($received === null)
+                        {{ number_format($expected) }} bungkus <span class="font-normal text-gray-500">(menunggu pemeriksaan Admin)</span>
+                    @else
+                        {{ number_format($received) }} dari {{ number_format($expected) }} bungkus
+                        @if ((int) $received < $expected)
+                            <span class="font-normal text-danger-600">· kurang {{ number_format($expected - (int) $received) }}</span>
+                        @endif
+                    @endif
+                </strong>
             </div>
         @empty
             <p class="text-sm text-gray-500">Tidak ada sisa stok bawaan.</p>

@@ -20,6 +20,8 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\Rules\Password;
 
 class UserResource extends Resource
 {
@@ -59,7 +61,9 @@ class UserResource extends Resource
                         ->helperText('Opsional, tetapi dianjurkan untuk pemulihan akun.'),
                     Select::make('role')
                         ->label('Peran')
-                        ->options(collect(UserRole::cases())->mapWithKeys(fn (UserRole $role) => [$role->value => $role->label()]))
+                        ->options(fn () => collect(UserRole::cases())
+                            ->reject(fn (UserRole $role) => $role === UserRole::Developer && ! auth()->user()?->isDeveloper())
+                            ->mapWithKeys(fn (UserRole $role) => [$role->value => $role->label()]))
                         ->required()
                         ->native(false),
                     Toggle::make('is_active')->label('Akun aktif')->default(true),
@@ -75,7 +79,7 @@ class UserResource extends Resource
                         ->password()
                         ->revealable()
                         ->minLength(8)
-                        ->rule(\Illuminate\Validation\Rules\Password::min(8)->letters()->numbers())
+                        ->rule(Password::min(8)->letters()->numbers())
                         ->required(fn (string $operation) => $operation === 'create')
                         ->dehydrated(fn (?string $state) => filled($state)),
                     TextInput::make('password_confirmation')
@@ -102,11 +106,20 @@ class UserResource extends Resource
                 TextColumn::make('updated_at')->label('Diperbarui')->since()->sortable(),
             ])
             ->filters([
-                SelectFilter::make('role')->label('Peran')->options(collect(UserRole::cases())->mapWithKeys(fn (UserRole $role) => [$role->value => $role->label()])),
+                SelectFilter::make('role')->label('Peran')->options(fn () => collect(UserRole::cases())
+                    ->reject(fn (UserRole $role) => $role === UserRole::Developer && ! auth()->user()?->isDeveloper())
+                    ->mapWithKeys(fn (UserRole $role) => [$role->value => $role->label()])),
                 TernaryFilter::make('is_active')->label('Status akun'),
             ])
             ->recordActions([EditAction::make()])
             ->defaultSort('name');
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->when(! auth()->user()?->isDeveloper(), fn (Builder $query) => $query
+                ->where('role', '!=', UserRole::Developer));
     }
 
     public static function getPages(): array

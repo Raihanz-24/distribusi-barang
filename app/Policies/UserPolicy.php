@@ -8,31 +8,31 @@ class UserPolicy
 {
     public function before(User $user): ?bool
     {
-        return $user->isAdmin() ? true : null;
+        return $user->isDeveloper() ? true : null;
     }
 
     public function viewAny(User $user): bool
     {
-        return false;
+        return $user->isAdmin();
     }
 
     public function view(User $user, User $model): bool
     {
-        return false;
+        return $user->isAdmin() && ! $model->isDeveloper();
     }
 
     public function create(User $user): bool
     {
-        return false;
+        return $user->isAdmin();
     }
 
     public function update(User $user, User $model): bool
     {
-        return false;
+        return $user->isAdmin() && ! $model->isDeveloper();
     }
 
     public function delete(User $user, User $model): bool
     {
-        return false;
+        return $user->isAdmin() && ! $model->isDeveloper();
     }
 }

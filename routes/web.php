@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DeveloperDatabaseBackupController;
 use App\Http\Controllers\NearbyStoresController;
 use App\Http\Controllers\ReverseGeocodeController;
 use App\Http\Controllers\SalesDepositExportController;
@@ -16,6 +17,9 @@ Route::get('/', function () {
 });
 
 Route::middleware(['auth', EnsureUserIsActive::class])->group(function (): void {
+    Route::get('/developer/database/backup', DeveloperDatabaseBackupController::class)
+        ->middleware('throttle:3,1')
+        ->name('developer.database.backup');
     Route::get('/internal/store-map-data', StoreMapDataController::class)->name('internal.store-map-data');
     Route::get('/internal/nearby-stores', NearbyStoresController::class)->middleware('throttle:30,1')->name('internal.nearby-stores');
     Route::get('/internal/reverse-geocode', ReverseGeocodeController::class)->middleware('throttle:20,1')->name('internal.reverse-geocode');

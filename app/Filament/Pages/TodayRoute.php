@@ -13,8 +13,10 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreVisit;
 use App\Services\ActiveSalesRoute;
+use App\Services\ActiveSalesStock;
 use App\Services\GeoDistance;
 use App\Services\NearbyStoreService;
+use App\Services\StockLocationService;
 use App\Services\StoreSettlementCalculator;
 use BackedEnum;
 use Filament\Notifications\Notification;
@@ -195,6 +197,17 @@ class TodayRoute extends Page
 
     public function selectStore(int $storeId): void
     {
+        if (! $this->canTransact) {
+            Notification::make()
+                ->title('Transaksi toko tidak tersedia')
+                ->body('Tidak ada stok aktif yang sedang dibawa atau pengembalian stok ke Admin sudah diajukan.')
+                ->danger()
+                ->persistent()
+                ->send();
+
+            return;
+        }
+
         $routeStore = $this->route?->routeStores->firstWhere('store_id', $storeId);
 
         if (! $routeStore) {
@@ -385,6 +398,74 @@ class TodayRoute extends Page
     public function getProductsProperty()
     {
         return Product::query()->with('currentPrice')->where('is_active', true)->orderBy('name')->get();
+    }
+
+    public function getCanTransactProperty(): bool
+    {
+        return app(ActiveSalesStock::class)->find(auth()->user()) !== null;
+    }
+
+    public function getSalesStockSummaryProperty(): array
+    {
+        $pickup = app(ActiveSalesStock::class)->find(auth()->user());
+
+        if (! $pickup) {
+            return [
+                'active' => false,
+                'transfer_number' => null,
+                'items' => [],
+                'total_pieces' => 0,
+                'total_collection' => 0,
+                'current_sales_collection' => 0,
+                'old_debt_collection' => 0,
+                'transaction_count' => 0,
+            ];
+        }
+
+        $balances = app(StockLocationService::class)
+            ->forSales(auth()->user())
+            ->balances()
+            ->with('product:id,name')
+            ->where('quantity_pieces', '>', 0)
+            ->orderBy('product_id')
+            ->get();
+
+        $completedVisits = StoreVisit::query()
+            ->where('daily_route_id', $pickup->daily_route_id)
+            ->where('sales_id', auth()->id())
+            ->whereNull('reversed_at')
+            ->whereNotNull('completed_at');
+
+        return [
+            'active' => true,
+            'transfer_number' => $pickup->number,
+            'items' => $balances->map(fn ($balance): array => [
+                'name' => $balance->product?->name ?? 'Produk',
+                'quantity' => (int) $balance->quantity_pieces,
+            ])->all(),
+            'total_pieces' => (int) $balances->sum('quantity_pieces'),
+            // Uang hanya berasal dari penagihan barang toko yang sudah laku.
+            // Titipan baru tidak menambah penerimaan. amount_paid terdiri dari
+            // pembayaran penjualan pada kunjungan ini dan pembayaran hutang lama.
+            'total_collection' => (int) (clone $completedVisits)->sum('amount_paid'),
+            'current_sales_collection' => (int) (clone $completedVisits)->sum('current_payment_amount'),
+            'old_debt_collection' => (int) (clone $completedVisits)->sum('debt_payment_amount'),
+            'transaction_count' => (int) (clone $completedVisits)
+                ->where(fn ($query) => $query
+                    ->whereHas('items')
+                    ->orWhere('amount_paid', '>', 0))
+                ->count(),
+        ];
+    }
+
+    public function getSalesStockBalancesProperty(): array
+    {
+        return app(StockLocationService::class)
+            ->forSales(auth()->user())
+            ->balances()
+            ->pluck('quantity_pieces', 'product_id')
+            ->map(fn ($quantity): int => (int) $quantity)
+            ->all();
     }
 
     public function getSelectedStoreProperty(): ?Store

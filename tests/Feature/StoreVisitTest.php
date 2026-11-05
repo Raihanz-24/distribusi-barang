@@ -10,6 +10,7 @@ use App\Data\Coordinate;
 use App\Enums\StockTransferStatus;
 use App\Enums\StockTransferType;
 use App\Enums\VisitStatus;
+use App\Filament\Pages\TodayRoute;
 use App\Models\DailyRoute;
 use App\Models\Product;
 use App\Models\StockTransfer;
@@ -24,6 +25,22 @@ use Tests\TestCase;
 class StoreVisitTest extends TestCase
 {
     use RefreshDatabase;
+
+    private function createActiveStockTransfer(User $sales, User $admin, DailyRoute $route): StockTransfer
+    {
+        $locations = app(StockLocationService::class);
+
+        return StockTransfer::query()->create([
+            'transfer_type' => StockTransferType::IssueToSales,
+            'daily_route_id' => $route->id,
+            'sales_id' => $sales->id,
+            'source_location_id' => $locations->adminWarehouse()->id,
+            'destination_location_id' => $locations->forSales($sales)->id,
+            'status' => StockTransferStatus::Received,
+            'created_by' => $admin->id,
+            'received_at' => now(),
+        ]);
+    }
 
     public function test_sales_can_deviate_from_optimized_order_and_actual_order_is_recorded(): void
     {
@@ -121,6 +138,7 @@ class StoreVisitTest extends TestCase
             'route_date' => today(),
         ]);
         $route->stores()->attach($store->id, ['planned_order' => 1]);
+        $this->createActiveStockTransfer($sales, $admin, $route);
         app(AdjustStock::class)->execute(
             app(StockLocationService::class)->forStore($store),
             $product,
@@ -179,6 +197,7 @@ class StoreVisitTest extends TestCase
             'route_date' => today(),
         ]);
         $route->stores()->attach($store->id, ['planned_order' => 1]);
+        $this->createActiveStockTransfer($sales, $admin, $route);
         app(AdjustStock::class)->execute(
             app(StockLocationService::class)->forStore($store),
             $product,
@@ -228,6 +247,7 @@ class StoreVisitTest extends TestCase
         ]);
         $route = DailyRoute::factory()->create(['sales_id' => $sales->id, 'created_by' => $admin->id, 'route_date' => today()]);
         $route->stores()->attach($store->id, ['planned_order' => 1]);
+        $this->createActiveStockTransfer($sales, $admin, $route);
         $locations = app(StockLocationService::class);
         app(AdjustStock::class)->execute($locations->forStore($store), $product, 12, 'Stok toko', $admin);
         app(AdjustStock::class)->execute($locations->forSales($sales), $product, 10, 'Stok Sales', $admin);
@@ -254,5 +274,171 @@ class StoreVisitTest extends TestCase
             'visit_status' => 'pending',
         ]);
         $this->assertDatabaseHas('audit_logs', ['action' => 'store.transaction_reversed']);
+    }
+
+    public function test_store_transaction_is_rejected_without_active_sales_stock_transfer(): void
+    {
+        $sales = User::factory()->create();
+        $admin = User::factory()->admin()->create();
+        $store = Store::factory()->create(['latitude' => -8.58, 'longitude' => 116.10]);
+        $product = Product::factory()->create();
+        $route = DailyRoute::factory()->create([
+            'sales_id' => $sales->id,
+            'created_by' => $admin->id,
+            'route_date' => today(),
+        ]);
+        $route->stores()->attach($store->id, ['planned_order' => 1]);
+
+        try {
+            app(RecordStoreTransaction::class)->execute(
+                $sales,
+                $store,
+                new Coordinate(-8.58, 116.10),
+                [$product->id => ['deposited' => 1]],
+                amountPaid: 0,
+            );
+            $this->fail('Transaksi seharusnya ditolak tanpa distribusi stok aktif.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('stock', $exception->errors());
+        }
+
+        $this->assertDatabaseCount('store_visits', 0);
+    }
+
+    public function test_store_transaction_is_rejected_after_sales_return_is_submitted(): void
+    {
+        $sales = User::factory()->create();
+        $admin = User::factory()->admin()->create();
+        $store = Store::factory()->create(['latitude' => -8.58, 'longitude' => 116.10]);
+        $product = Product::factory()->create();
+        $route = DailyRoute::factory()->create([
+            'sales_id' => $sales->id,
+            'created_by' => $admin->id,
+            'route_date' => today(),
+        ]);
+        $route->stores()->attach($store->id, ['planned_order' => 1]);
+        $pickup = $this->createActiveStockTransfer($sales, $admin, $route);
+        $locations = app(StockLocationService::class);
+        StockTransfer::query()->create([
+            'transfer_type' => StockTransferType::ReturnFromSales,
+            'pickup_transfer_id' => $pickup->id,
+            'source_location_id' => $locations->forSales($sales)->id,
+            'destination_location_id' => $locations->adminWarehouse()->id,
+            'sales_id' => $sales->id,
+            'status' => StockTransferStatus::PendingApproval,
+            'created_by' => $sales->id,
+        ]);
+
+        try {
+            app(RecordStoreTransaction::class)->execute(
+                $sales,
+                $store,
+                new Coordinate(-8.58, 116.10),
+                [$product->id => ['deposited' => 1]],
+                amountPaid: 0,
+            );
+            $this->fail('Transaksi seharusnya ditolak setelah pengembalian diajukan.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('stock', $exception->errors());
+        }
+
+        $this->assertDatabaseCount('store_visits', 0);
+    }
+
+    public function test_sales_workspace_summary_updates_remaining_stock_and_received_cash(): void
+    {
+        $sales = User::factory()->create();
+        $admin = User::factory()->admin()->create();
+        $store = Store::factory()->create(['latitude' => -8.58, 'longitude' => 116.10]);
+        $product = Product::factory()->create(['pieces_per_renteng' => 12]);
+        $product->prices()->create([
+            'price_per_renteng' => 20_000,
+            'effective_from' => today(),
+            'is_active' => true,
+            'created_by' => $admin->id,
+        ]);
+        $route = DailyRoute::factory()->create([
+            'sales_id' => $sales->id,
+            'created_by' => $admin->id,
+            'route_date' => today(),
+        ]);
+        $route->stores()->attach($store->id, ['planned_order' => 1]);
+        $this->createActiveStockTransfer($sales, $admin, $route);
+        app(AdjustStock::class)->execute(
+            app(StockLocationService::class)->forSales($sales),
+            $product,
+            20,
+            'Stok dibawa Sales',
+            $admin,
+        );
+        app(AdjustStock::class)->execute(
+            app(StockLocationService::class)->forStore($store),
+            $product,
+            3,
+            'Stok titipan yang terjual',
+            $admin,
+        );
+
+        app(RecordStoreTransaction::class)->execute(
+            $sales,
+            $store,
+            new Coordinate(-8.58, 116.10),
+            [$product->id => ['sold' => 3, 'deposited' => 5, 'withdrawn' => 0]],
+            amountPaid: 4_000,
+        );
+
+        $this->actingAs($sales);
+        $summary = app(TodayRoute::class)->salesStockSummary;
+
+        $this->assertSame(15, $summary['total_pieces']);
+        $this->assertSame(4_000, $summary['total_collection']);
+        $this->assertSame(4_000, $summary['current_sales_collection']);
+        $this->assertSame(0, $summary['old_debt_collection']);
+        $this->assertSame(1, $summary['transaction_count']);
+        $this->assertSame(15, $summary['items'][0]['quantity']);
+    }
+
+    public function test_depositing_stock_without_collection_does_not_add_received_cash(): void
+    {
+        $sales = User::factory()->create();
+        $admin = User::factory()->admin()->create();
+        $store = Store::factory()->create(['latitude' => -8.58, 'longitude' => 116.10]);
+        $product = Product::factory()->create(['pieces_per_renteng' => 12]);
+        $product->prices()->create([
+            'price_per_renteng' => 20_000,
+            'effective_from' => today(),
+            'is_active' => true,
+            'created_by' => $admin->id,
+        ]);
+        $route = DailyRoute::factory()->create([
+            'sales_id' => $sales->id,
+            'created_by' => $admin->id,
+            'route_date' => today(),
+        ]);
+        $route->stores()->attach($store->id, ['planned_order' => 1]);
+        $this->createActiveStockTransfer($sales, $admin, $route);
+        app(AdjustStock::class)->execute(
+            app(StockLocationService::class)->forSales($sales),
+            $product,
+            20,
+            'Stok dibawa Sales',
+            $admin,
+        );
+
+        app(RecordStoreTransaction::class)->execute(
+            $sales,
+            $store,
+            new Coordinate(-8.58, 116.10),
+            [$product->id => ['sold' => 0, 'deposited' => 5, 'withdrawn' => 0]],
+            amountPaid: 0,
+        );
+
+        $this->actingAs($sales);
+        $summary = app(TodayRoute::class)->salesStockSummary;
+
+        $this->assertSame(15, $summary['total_pieces']);
+        $this->assertSame(0, $summary['total_collection']);
+        $this->assertSame(0, $summary['current_sales_collection']);
+        $this->assertSame(0, $summary['old_debt_collection']);
     }
 }

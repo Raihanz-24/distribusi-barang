@@ -10,6 +10,8 @@
     @else
         @php
             $routeStores = $this->route->routeStores->sortBy(fn ($item) => $item->optimized_order ?? $item->planned_order ?? 999);
+            $stockSummary = $this->salesStockSummary;
+            $salesStockBalances = $this->salesStockBalances;
             $finishedCount = $routeStores->filter(fn ($item) => $item->latestVisit)->count();
             $remainingCount = $routeStores->count() - $finishedCount;
             $progress = $routeStores->count() ? round(($finishedCount / $routeStores->count()) * 100) : 0;
@@ -43,6 +45,46 @@
                 </div>
                 <div class="mt-5 h-2 overflow-hidden rounded-full bg-black/25"><div class="h-full rounded-full bg-amber-300 transition-all" style="width: {{ $progress }}%"></div></div>
             </section>
+
+            @if ($stockSummary['active'])
+                <section class="rounded-2xl border border-green-500/30 bg-green-500/10 p-4 shadow-sm">
+                    <div class="flex flex-col gap-4">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                                <div class="text-xs font-bold uppercase tracking-wider text-green-700 dark:text-green-300">Stok Sales aktif · {{ $stockSummary['transfer_number'] }}</div>
+                                <div class="mt-1 text-sm text-gray-600 dark:text-gray-300">Ringkasan otomatis diperbarui setiap transaksi toko berhasil disimpan.</div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 sm:min-w-80">
+                                <div class="rounded-xl bg-white p-3 shadow-sm dark:bg-gray-900">
+                                    <div class="text-[10px] font-bold uppercase tracking-wide text-gray-500">Sisa stok dibawa</div>
+                                    <div class="mt-1 text-xl font-black text-green-700 dark:text-green-300">{{ number_format($stockSummary['total_pieces']) }}</div>
+                                    <div class="text-[10px] text-gray-500">bungkus</div>
+                                </div>
+                                <div class="rounded-xl bg-white p-3 shadow-sm dark:bg-gray-900">
+                                    <div class="text-[10px] font-bold uppercase tracking-wide text-gray-500">Hasil penagihan</div>
+                                    <div class="mt-1 text-xl font-black text-amber-700 dark:text-amber-300">Rp {{ number_format($stockSummary['total_collection'], 0, ',', '.') }}</div>
+                                    <div class="mt-1 text-[10px] leading-4 text-gray-500">Stok laku Rp {{ number_format($stockSummary['current_sales_collection'], 0, ',', '.') }} · Hutang lama Rp {{ number_format($stockSummary['old_debt_collection'], 0, ',', '.') }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="border-t border-green-600/15 pt-3">
+                            <div class="mb-2 flex flex-wrap items-center justify-between gap-2"><span class="text-[10px] font-bold uppercase tracking-wide text-green-800/70 dark:text-green-300/70">Sisa stok per produk</span><span class="text-[10px] text-gray-500">Hasil penagihan dari {{ number_format($stockSummary['transaction_count']) }} transaksi; titipan baru tidak dihitung sebagai uang.</span></div>
+                            <div class="flex flex-wrap gap-2">
+                                @forelse ($stockSummary['items'] as $item)
+                                    <span class="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-green-800 shadow-sm dark:bg-gray-900 dark:text-green-300">{{ $item['name'] }}: {{ number_format($item['quantity']) }} bungkus</span>
+                                @empty
+                                    <span class="text-xs font-semibold text-amber-700 dark:text-amber-300">Saldo stok kosong; hanya penarikan produk atau pembayaran hutang yang dapat diproses.</span>
+                                @endforelse
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            @else
+                <section class="rounded-2xl border-2 border-red-500/40 bg-red-500/10 p-5 shadow-sm">
+                    <h3 class="font-bold text-red-800 dark:text-red-300">Transaksi toko dinonaktifkan</h3>
+                    <p class="mt-1 text-sm leading-6 text-red-700 dark:text-red-400">Tidak ada distribusi stok aktif yang sedang Anda bawa. Stok mungkin belum diterima, sudah diserahkan, atau pengembalian ke Admin sedang menunggu persetujuan.</p>
+                </section>
+            @endif
 
             <section class="overflow-hidden rounded-2xl border-2 border-amber-500/30 bg-white shadow-sm dark:bg-gray-900">
                 <div class="border-b border-gray-200 bg-amber-500/5 p-4 dark:border-white/10">
@@ -80,7 +122,7 @@
                                     @if (! $store['in_route'])
                                         <button type="button" wire:click="addStoreToRoute({{ $store['id'] }})" class="min-h-10 flex-1 rounded-xl border border-amber-600 px-3 text-xs font-bold text-amber-700 hover:bg-amber-500/10 dark:text-amber-300">+ Tambah ke rute</button>
                                     @endif
-                                    <button type="button" wire:click="selectStore({{ $store['id'] }})" @disabled($store['visited_today']) class="min-h-10 flex-1 rounded-xl bg-amber-600 px-3 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-40">Buat transaksi</button>
+                                    <button type="button" wire:click="selectStore({{ $store['id'] }})" @disabled($store['visited_today'] || ! $stockSummary['active']) class="min-h-10 flex-1 rounded-xl bg-amber-600 px-3 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-40">Buat transaksi</button>
                                 </div>
                             </article>
                         @empty
@@ -126,7 +168,7 @@
                                 </span>
                                 @if (! $visit)
                                     <span class="grid shrink-0 gap-1">
-                                        <button type="button" wire:click="selectStore({{ $routeStore->store_id }})" title="Buat transaksi" class="rounded-lg bg-amber-600 px-2 py-1.5 text-xs font-bold text-white">Pilih</button>
+                                        <button type="button" wire:click="selectStore({{ $routeStore->store_id }})" @disabled(! $stockSummary['active']) title="Buat transaksi" class="rounded-lg bg-amber-600 px-2 py-1.5 text-xs font-bold text-white disabled:opacity-40">Pilih</button>
                                         <span class="flex gap-1"><button type="button" wire:click="moveRouteStore({{ $routeStore->id }}, 'up')" title="Naikkan" class="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-white/10">↑</button><button type="button" wire:click="moveRouteStore({{ $routeStore->id }}, 'down')" title="Turunkan" class="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-white/10">↓</button><button type="button" wire:click="removeStoreFromRoute({{ $routeStore->id }})" wire:confirm="Hapus toko ini dari rute hari ini?" title="Hapus dari rute" class="rounded bg-red-500/10 px-2 py-1 text-xs text-red-600">×</button></span>
                                     </span>
                                 @endif
@@ -141,7 +183,7 @@
                     <div class="mb-3 flex items-center justify-between"><div><h3 class="font-bold text-gray-950 dark:text-white">Toko di Sekitar Saya</h3><p class="text-xs text-gray-500">Diurutkan berdasarkan jarak GPS saat ini.</p></div><button type="button" wire:click="recalculateRoute" class="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold dark:border-white/10">Hitung ulang rute</button></div>
                     <div class="flex gap-3 overflow-x-auto pb-1">
                         @forelse ($nearbyStores as $store)
-                            <button type="button" wire:click="selectStore({{ $store['id'] }})" @disabled($store['visited']) class="min-w-64 rounded-xl border p-3 text-left {{ $store['visited'] ? 'cursor-not-allowed bg-gray-100 opacity-50 dark:bg-white/5' : 'border-gray-200 hover:border-amber-500 dark:border-white/10' }}">
+                            <button type="button" wire:click="selectStore({{ $store['id'] }})" @disabled($store['visited'] || ! $stockSummary['active']) class="min-w-64 rounded-xl border p-3 text-left {{ $store['visited'] ? 'cursor-not-allowed bg-gray-100 opacity-50 dark:bg-white/5' : 'border-gray-200 hover:border-amber-500 disabled:opacity-40 dark:border-white/10' }}">
                                 <span class="block truncate text-sm font-bold">{{ $store['name'] }}</span><span class="mt-1 block text-xs text-gray-500">{{ number_format($store['distance_meters']) }} meter</span><span class="mt-2 block text-[10px] font-semibold {{ $store['in_today_route'] ? 'text-green-600' : 'text-amber-600' }}">{{ $store['visited'] ? 'Sudah selesai' : ($store['in_today_route'] ? 'Dalam rute · '.$store['last_visit_label'] : '+ Otomatis masuk rute · '.$store['last_visit_label']) }}</span>
                             </button>
                         @empty
@@ -163,7 +205,7 @@
                             @foreach ($this->products as $product)
                                 @php($preview = $this->transactionPreview($this->selectedStore->id, $product->id))
                                 <div class="rounded-xl border border-gray-200 p-4 dark:border-white/10" wire:key="product-{{ $this->selectedStore->id }}-{{ $product->id }}">
-                                    <div class="mb-3 font-bold">{{ $product->name }}</div>
+                                    <div class="mb-3 flex items-center justify-between gap-3"><span class="font-bold">{{ $product->name }}</span><span class="rounded-full bg-green-500/10 px-2.5 py-1 text-[11px] font-bold text-green-700 dark:text-green-300">Stok Sales: {{ number_format($salesStockBalances[$product->id] ?? 0) }}</span></div>
                                     @if (! empty($preview['price_missing']))
                                         <div class="mb-3 rounded-lg border border-red-300 bg-red-50 p-2 text-xs font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
                                             ⚠️ {{ $preview['price_missing'] }}
@@ -171,7 +213,7 @@
                                     @endif
                                     <div class="grid gap-3 sm:grid-cols-3">
                                         <label class="text-sm"><span class="mb-1.5 block text-gray-500">Produk laku (bungkus)</span><input type="number" min="0" inputmode="numeric" wire:model.live.debounce.350ms="transactions.{{ $this->selectedStore->id }}.products.{{ $product->id }}.sold" class="fi-input block w-full" placeholder="0"></label>
-                                        <label class="text-sm"><span class="mb-1.5 block text-gray-500">Titip baru (bungkus)</span><input type="number" min="0" inputmode="numeric" wire:model="transactions.{{ $this->selectedStore->id }}.products.{{ $product->id }}.deposited" class="fi-input block w-full" placeholder="0"></label>
+                                        <label class="text-sm"><span class="mb-1.5 block text-gray-500">Titip baru (bungkus)</span><input type="number" min="0" max="{{ $salesStockBalances[$product->id] ?? 0 }}" inputmode="numeric" wire:model="transactions.{{ $this->selectedStore->id }}.products.{{ $product->id }}.deposited" class="fi-input block w-full" placeholder="0"><span class="mt-1 block text-[10px] text-gray-400">Maksimal stok yang sedang dibawa: {{ number_format($salesStockBalances[$product->id] ?? 0) }}</span></label>
                                         <label class="text-sm"><span class="mb-1.5 block text-gray-500">Tarik produk (bungkus)</span><input type="number" min="0" inputmode="numeric" wire:model="transactions.{{ $this->selectedStore->id }}.products.{{ $product->id }}.withdrawn" class="fi-input block w-full" placeholder="0"><span class="mt-1 block text-[10px] text-gray-400">{{ $product->pieces_per_renteng }} bungkus = 1 renteng</span></label>
                                     </div>
                                     <div class="mt-3 grid grid-cols-2 gap-2 text-xs"><div class="rounded-lg bg-green-500/10 p-2 text-green-700 dark:text-green-400">Fee toko<br><strong class="text-sm">Rp {{ number_format($preview['store_fee'], 0, ',', '.') }}</strong></div><div class="rounded-lg bg-amber-500/10 p-2 text-amber-700 dark:text-amber-400">Wajib bayar<br><strong class="text-sm">Rp {{ number_format($preview['amount_due'], 0, ',', '.') }}</strong></div></div>

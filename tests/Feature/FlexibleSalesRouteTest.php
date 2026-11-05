@@ -5,13 +5,17 @@ namespace Tests\Feature;
 use App\Actions\ManageSalesRoute;
 use App\Actions\RecordStoreVisit;
 use App\Data\Coordinate;
+use App\Enums\StockTransferStatus;
+use App\Enums\StockTransferType;
 use App\Enums\UserRole;
 use App\Enums\VisitStatus;
 use App\Filament\Pages\TodayRoute;
 use App\Filament\Pages\VisitCoverage;
 use App\Models\DailyRoute;
+use App\Models\StockTransfer;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\StockLocationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
@@ -96,14 +100,24 @@ class FlexibleSalesRouteTest extends TestCase
 
     public function test_selecting_store_outside_route_adds_it_automatically(): void
     {
+        $route = app(ManageSalesRoute::class)->today($this->sales);
+        $locations = app(StockLocationService::class);
+        StockTransfer::query()->create([
+            'transfer_type' => StockTransferType::IssueToSales,
+            'daily_route_id' => $route->id,
+            'sales_id' => $this->sales->id,
+            'source_location_id' => $locations->adminWarehouse()->id,
+            'destination_location_id' => $locations->forSales($this->sales)->id,
+            'status' => StockTransferStatus::Received,
+            'created_by' => $this->admin->id,
+            'received_at' => now(),
+        ]);
         $this->actingAs($this->sales);
 
         $component = Livewire::test(TodayRoute::class)
             ->call('selectStore', $this->first->id)
             ->assertSet('selectedStoreId', $this->first->id)
             ->assertSee('Transaksi toko');
-
-        $route = DailyRoute::query()->where('sales_id', $this->sales->id)->whereDate('route_date', today())->firstOrFail();
 
         $this->assertDatabaseHas('daily_route_stores', [
             'daily_route_id' => $route->id,

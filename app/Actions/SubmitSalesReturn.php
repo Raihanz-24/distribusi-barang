@@ -40,6 +40,14 @@ class SubmitSalesReturn
         $sales = User::query()->findOrFail($pickup->sales_id);
 
         return DB::transaction(function () use ($pickup, $sales, $actor): DailySalesSettlement {
+            $pickup = StockTransfer::query()->lockForUpdate()->findOrFail($pickup->id);
+
+            if ($pickup->status !== StockTransferStatus::Received || $pickup->returnTransfer()->exists()) {
+                throw ValidationException::withMessages([
+                    'status' => 'Stok tidak lagi aktif atau pengajuan pengembalian sudah dibuat.',
+                ]);
+            }
+
             $route = DailyRoute::query()
                 ->withCount([
                     'routeStores as unfinished_stores_count' => fn ($query) => $query->whereDoesntHave('latestVisit'),

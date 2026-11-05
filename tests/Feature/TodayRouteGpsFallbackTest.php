@@ -2,16 +2,26 @@
 
 namespace Tests\Feature;
 
+use App\Actions\AdjustStock;
 use App\Actions\RecordStoreTransaction;
 use App\Data\Coordinate;
+use App\Enums\DailyRouteStatus;
+use App\Enums\OptimizationStatus;
+use App\Enums\StockTransferStatus;
+use App\Enums\StockTransferType;
 use App\Enums\UserRole;
 use App\Filament\Pages\TodayRoute;
+use App\Models\DailyRoute;
+use App\Models\DailyRouteStore;
 use App\Models\Product;
 use App\Models\ProductPrice;
+use App\Models\StockTransfer;
 use App\Models\Store;
 use App\Models\StoreVisit;
 use App\Models\User;
+use App\Services\StockLocationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -32,18 +42,30 @@ class TodayRouteGpsFallbackTest extends TestCase
             'name' => 'Toko GPS',
         ]);
 
-        $route = \App\Models\DailyRoute::query()->create([
+        $route = DailyRoute::query()->create([
             'sales_id' => $sales->id,
             'route_date' => now()->toDateString(),
-            'status' => \App\Enums\DailyRouteStatus::Scheduled,
-            'optimization_status' => \App\Enums\OptimizationStatus::Pending,
+            'status' => DailyRouteStatus::Scheduled,
+            'optimization_status' => OptimizationStatus::Pending,
             'created_by' => User::factory()->admin()->create()->id,
         ]);
 
-        \App\Models\DailyRouteStore::query()->create([
+        DailyRouteStore::query()->create([
             'daily_route_id' => $route->id,
             'store_id' => $store->id,
             'planned_order' => 1,
+        ]);
+
+        $locations = app(StockLocationService::class);
+        StockTransfer::query()->create([
+            'transfer_type' => StockTransferType::IssueToSales,
+            'daily_route_id' => $route->id,
+            'sales_id' => $sales->id,
+            'source_location_id' => $locations->adminWarehouse()->id,
+            'destination_location_id' => $locations->forSales($sales)->id,
+            'status' => StockTransferStatus::Received,
+            'created_by' => $route->created_by,
+            'received_at' => now(),
         ]);
 
         return $store;
@@ -92,8 +114,8 @@ class TodayRouteGpsFallbackTest extends TestCase
         ]);
 
         // Stok sales harus ada sebelum barang dititipkan ke toko.
-        app(\App\Actions\AdjustStock::class)->execute(
-            app(\App\Services\StockLocationService::class)->forSales($sales),
+        app(AdjustStock::class)->execute(
+            app(StockLocationService::class)->forSales($sales),
             $product,
             12,
             'Stok awal pengujian',
@@ -129,7 +151,7 @@ class TodayRouteGpsFallbackTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $this->expectException(ValidationException::class);
 
         app(RecordStoreTransaction::class)->execute(
             $sales,

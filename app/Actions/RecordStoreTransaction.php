@@ -10,6 +10,7 @@ use App\Models\Store;
 use App\Models\StoreAccountEntry;
 use App\Models\StoreVisit;
 use App\Models\User;
+use App\Services\ActiveSalesStock;
 use App\Services\AuditLogger;
 use App\Services\StockLocationService;
 use App\Services\StoreSettlementCalculator;
@@ -34,6 +35,14 @@ class RecordStoreTransaction
         })->filter(fn (array $row) => $row['sold'] > 0 || $row['deposited'] > 0 || $row['withdrawn'] > 0)->values();
 
         return DB::transaction(function () use ($sales, $store, $position, $rows, $accuracy, $amountPaid, $debtPayment, $locationNote): StoreVisit {
+            $activeStock = app(ActiveSalesStock::class)->find($sales, lockForUpdate: true);
+
+            if (! $activeStock) {
+                throw ValidationException::withMessages([
+                    'stock' => 'Transaksi toko tidak dapat dilakukan karena tidak ada stok aktif yang sedang dibawa. Stok mungkin belum diterima atau pengembalian ke Admin sudah diajukan.',
+                ]);
+            }
+
             $lockedStore = Store::query()->whereKey($store->id)->lockForUpdate()->firstOrFail();
             $openingDebt = max(0, (int) StoreAccountEntry::query()
                 ->where('store_id', $lockedStore->id)

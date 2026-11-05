@@ -7,6 +7,8 @@ use App\Actions\RecordStoreTransaction;
 use App\Data\Coordinate;
 use App\Enums\DailyRouteStatus;
 use App\Enums\OptimizationStatus;
+use App\Enums\StockTransferStatus;
+use App\Enums\StockTransferType;
 use App\Enums\UserRole;
 use App\Filament\Pages\Diagnostics;
 use App\Filament\Pages\TodayRoute;
@@ -14,7 +16,9 @@ use App\Models\DailyRoute;
 use App\Models\DailyRouteStore;
 use App\Models\Product;
 use App\Models\ProductPrice;
+use App\Models\StockTransfer;
 use App\Models\Store;
+use App\Models\StoreVisit;
 use App\Models\User;
 use App\Services\StockLocationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -61,6 +65,18 @@ class TodayRouteReceiptListTest extends TestCase
             'planned_order' => 1,
         ]);
 
+        $locations = app(StockLocationService::class);
+        StockTransfer::query()->create([
+            'transfer_type' => StockTransferType::IssueToSales,
+            'daily_route_id' => $route->id,
+            'sales_id' => $this->sales->id,
+            'source_location_id' => $locations->adminWarehouse()->id,
+            'destination_location_id' => $locations->forSales($this->sales)->id,
+            'status' => StockTransferStatus::Received,
+            'created_by' => $admin->id,
+            'received_at' => now(),
+        ]);
+
         $this->product = Product::factory()->create(['is_active' => true, 'pieces_per_renteng' => 12]);
         ProductPrice::factory()->create([
             'product_id' => $this->product->id,
@@ -77,7 +93,7 @@ class TodayRouteReceiptListTest extends TestCase
         );
     }
 
-    private function recordTransaction(): \App\Models\StoreVisit
+    private function recordTransaction(): StoreVisit
     {
         return app(RecordStoreTransaction::class)->execute(
             $this->sales,

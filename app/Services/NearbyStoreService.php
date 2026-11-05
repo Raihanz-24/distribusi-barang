@@ -22,6 +22,7 @@ class NearbyStoreService
         $routeStoreIds = $activeRoute?->routeStores()->pluck('store_id')->all() ?? [];
 
         return Store::query()
+            ->with(['latestVisit.sales:id,name'])
             ->where('is_active', true)
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')

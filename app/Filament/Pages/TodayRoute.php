@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Actions\ManageSalesRoute;
 use App\Actions\OptimizeDailyRoute;
 use App\Actions\RecordStoreTransaction;
 use App\Actions\RecordStoreVisit;
@@ -11,14 +12,16 @@ use App\Models\DailyRoute;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreVisit;
-use App\Services\NearbyStoreService;
 use App\Services\ActiveSalesRoute;
+use App\Services\GeoDistance;
+use App\Services\NearbyStoreService;
 use App\Services\StoreSettlementCalculator;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 class TodayRoute extends Page
@@ -61,6 +64,10 @@ class TodayRoute extends Page
 
     public ?int $lastVisitId = null;
 
+    public string $storeSearch = '';
+
+    public string $storeSearchFilter = 'all';
+
     public static function canAccess(): bool
     {
         return auth()->user()?->isSales() ?? false;
@@ -93,7 +100,62 @@ class TodayRoute extends Page
                 'in_today_route' => $store->in_today_route,
                 'visited' => $this->route?->routeStores
                     ->firstWhere('store_id', $store->id)?->latestVisit !== null,
+                'last_visit_label' => $this->lastVisitLabel($store->latestVisit?->arrived_at),
+                'last_visit_sales' => $store->latestVisit?->sales?->name,
             ])->all();
+    }
+
+    public function addStoreToRoute(int $storeId, bool $openTransaction = false): void
+    {
+        $route = $this->route;
+
+        if (! $route) {
+            $route = app(ManageSalesRoute::class)->today(auth()->user());
+        }
+
+        try {
+            app(ManageSalesRoute::class)->addStore($route, Store::query()->findOrFail($storeId), auth()->user());
+        } catch (ValidationException $exception) {
+            Notification::make()->title('Toko tidak dapat ditambahkan')
+                ->body(collect($exception->errors())->flatten()->first())->danger()->send();
+
+            return;
+        }
+
+        Notification::make()->title('Toko ditambahkan ke rute hari ini')->success()->send();
+
+        if ($openTransaction) {
+            $this->selectedStoreId = $storeId;
+            $this->dispatch('store-selected');
+        }
+    }
+
+    public function removeStoreFromRoute(int $routeStoreId): void
+    {
+        $routeStore = $this->route?->routeStores->firstWhere('id', $routeStoreId);
+
+        if (! $routeStore) {
+            return;
+        }
+
+        try {
+            app(ManageSalesRoute::class)->removeStore($routeStore, auth()->user());
+            Notification::make()->title('Toko dihapus dari rute')->success()->send();
+        } catch (ValidationException $exception) {
+            Notification::make()->title('Toko tidak dapat dihapus')
+                ->body(collect($exception->errors())->flatten()->first())->danger()->send();
+        }
+    }
+
+    public function moveRouteStore(int $routeStoreId, string $direction): void
+    {
+        $routeStore = $this->route?->routeStores->firstWhere('id', $routeStoreId);
+
+        if (! $routeStore) {
+            return;
+        }
+
+        app(ManageSalesRoute::class)->move($routeStore, $direction, auth()->user());
     }
 
     /**
@@ -135,7 +197,13 @@ class TodayRoute extends Page
     {
         $routeStore = $this->route?->routeStores->firstWhere('store_id', $storeId);
 
-        if (! $routeStore || $routeStore->latestVisit) {
+        if (! $routeStore) {
+            $this->addStoreToRoute($storeId, true);
+
+            return;
+        }
+
+        if ($routeStore->latestVisit) {
             Notification::make()->title('Toko tidak tersedia untuk transaksi')->warning()->send();
 
             return;
@@ -302,13 +370,15 @@ class TodayRoute extends Page
 
     public function getRouteProperty(): ?DailyRoute
     {
-        $route = app(ActiveSalesRoute::class)->find(auth()->user());
+        $route = app(ActiveSalesRoute::class)->find(auth()->user())
+            ?? app(ManageSalesRoute::class)->today(auth()->user());
 
         return $route?->load([
             'area',
             'areas',
             'routeStores.store',
             'routeStores.latestVisit.items.product',
+            'routeStores.store.latestVisit.sales:id,name',
         ]);
     }
 
@@ -323,8 +393,90 @@ class TodayRoute extends Page
             return null;
         }
 
-        return $this->route?->routeStores
-            ->firstWhere('store_id', $this->selectedStoreId)?->store;
+        return Store::query()
+            ->where('is_active', true)
+            ->whereKey($this->selectedStoreId)
+            ->whereHas('dailyRouteStores', fn ($query) => $query
+                ->where('daily_route_id', $this->route?->id))
+            ->first();
+    }
+
+    /**
+     * Hasil pencarian semua toko aktif. Informasi kunjungan terakhir berasal
+     * dari seluruh Sales agar kunjungan ganda dapat dihindari.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getStoreSearchResultsProperty(): array
+    {
+        $term = trim($this->storeSearch);
+
+        if (mb_strlen($term) < 2) {
+            return [];
+        }
+
+        $routeStoreIds = $this->route?->routeStores->pluck('store_id')->all() ?? [];
+
+        return Store::query()
+            ->with(['latestVisit.sales:id,name'])
+            ->where('is_active', true)
+            ->where(function ($query) use ($term): void {
+                $query->where('name', 'like', "%{$term}%")
+                    ->orWhere('code', 'like', "%{$term}%")
+                    ->orWhere('address', 'like', "%{$term}%")
+                    ->orWhere('village', 'like', "%{$term}%")
+                    ->orWhere('district', 'like', "%{$term}%");
+            })
+            ->when($this->storeSearchFilter === 'never', fn ($query) => $query->whereDoesntHave('visits', fn ($visit) => $visit->whereNull('reversed_at')))
+            ->when($this->storeSearchFilter === 'not_this_month', fn ($query) => $query->whereDoesntHave('visits', fn ($visit) => $visit
+                ->whereNull('reversed_at')
+                ->whereBetween('arrived_at', [now()->startOfMonth(), now()->endOfMonth()])))
+            ->orderBy('name')
+            ->limit(30)
+            ->get()
+            ->map(function (Store $store) use ($routeStoreIds): array {
+                $distance = null;
+
+                if ($this->currentLatitude !== null && $this->currentLongitude !== null
+                    && $store->latitude !== null && $store->longitude !== null) {
+                    $distance = app(GeoDistance::class)->meters(
+                        new Coordinate($this->currentLatitude, $this->currentLongitude),
+                        new Coordinate((float) $store->latitude, (float) $store->longitude),
+                    );
+                }
+
+                return [
+                    'id' => $store->id,
+                    'name' => $store->name,
+                    'code' => $store->code,
+                    'address' => $store->address,
+                    'in_route' => in_array($store->id, $routeStoreIds, true),
+                    'distance_meters' => $distance,
+                    'last_visit_label' => $this->lastVisitLabel($store->latestVisit?->arrived_at),
+                    'last_visit_sales' => $store->latestVisit?->sales?->name,
+                    'visited_today' => $store->latestVisit?->arrived_at?->isToday() ?? false,
+                ];
+            })
+            ->all();
+    }
+
+    private function lastVisitLabel(?Carbon $visitedAt): string
+    {
+        if (! $visitedAt) {
+            return 'Belum pernah dikunjungi';
+        }
+
+        if ($visitedAt->isToday()) {
+            return 'Dikunjungi hari ini';
+        }
+
+        if ($visitedAt->isYesterday()) {
+            return 'Terakhir dikunjungi kemarin';
+        }
+
+        $days = $visitedAt->startOfDay()->diffInDays(today());
+
+        return "Terakhir dikunjungi {$days} hari lalu";
     }
 
     public function getRouteMapDataProperty(): array

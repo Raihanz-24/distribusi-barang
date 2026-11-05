@@ -4,8 +4,8 @@
     @if (! $this->route)
         <div class="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center shadow-sm dark:border-white/10 dark:bg-gray-900">
             <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-2xl">🗺️</div>
-            <h2 class="text-lg font-bold text-gray-950 dark:text-white">Belum ada jadwal hari ini</h2>
-            <p class="mx-auto mt-2 max-w-md text-sm text-gray-500">Rute dan daftar toko akan muncul setelah Admin memberikan jadwal distribusi kepada akun Anda.</p>
+            <h2 class="text-lg font-bold text-gray-950 dark:text-white">Menyiapkan rute hari ini…</h2>
+            <p class="mx-auto mt-2 max-w-md text-sm text-gray-500">Muat ulang halaman jika rute lapangan belum muncul.</p>
         </div>
     @else
         @php
@@ -31,9 +31,9 @@
             <section class="overflow-hidden rounded-2xl bg-gradient-to-br from-amber-600 via-amber-700 to-stone-900 p-5 text-white shadow-lg md:p-6">
                 <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
                     <div>
-                        <div class="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-amber-200">Jadwal kerja hari ini</div>
-                        <h2 class="text-2xl font-bold">{{ $this->route->area?->name ?? $this->route->areas->pluck('name')->join(', ') ?: 'Rute khusus' }}</h2>
-                        <p class="mt-1 text-sm text-amber-100">{{ $this->route->route_date->translatedFormat('l, d F Y') }} · {{ $routeStores->count() }} toko ditugaskan</p>
+                        <div class="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-amber-200">Rute fleksibel hari ini</div>
+                        <h2 class="text-2xl font-bold">Rencana Lapangan Saya</h2>
+                        <p class="mt-1 text-sm text-amber-100">{{ $this->route->route_date->translatedFormat('l, d F Y') }} · {{ $routeStores->count() }} toko dipilih · Anda bebas menambah toko saat di lapangan</p>
                     </div>
                     <div class="grid grid-cols-3 gap-2 text-center md:min-w-80">
                         <div class="rounded-xl bg-white/10 px-3 py-3 backdrop-blur"><div class="text-xl font-bold">{{ $finishedCount }}</div><div class="text-[11px] text-amber-100">Selesai</div></div>
@@ -42,6 +42,52 @@
                     </div>
                 </div>
                 <div class="mt-5 h-2 overflow-hidden rounded-full bg-black/25"><div class="h-full rounded-full bg-amber-300 transition-all" style="width: {{ $progress }}%"></div></div>
+            </section>
+
+            <section class="overflow-hidden rounded-2xl border-2 border-amber-500/30 bg-white shadow-sm dark:bg-gray-900">
+                <div class="border-b border-gray-200 bg-amber-500/5 p-4 dark:border-white/10">
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-end">
+                        <label class="min-w-0 flex-1 text-sm">
+                            <span class="mb-1.5 block font-bold text-gray-950 dark:text-white">🔎 Cari toko untuk dikunjungi</span>
+                            <input wire:model.live.debounce.350ms="storeSearch" class="fi-input block min-h-12 w-full" placeholder="Ketik nama toko, kode, alamat, desa atau kecamatan…">
+                        </label>
+                        <label class="text-sm lg:w-56">
+                            <span class="mb-1.5 block font-semibold">Prioritas pencarian</span>
+                            <select wire:model.live="storeSearchFilter" class="fi-input block min-h-12 w-full">
+                                <option value="all">Semua toko</option>
+                                <option value="not_this_month">Belum dikunjungi bulan ini</option>
+                                <option value="never">Belum pernah dikunjungi</option>
+                            </select>
+                        </label>
+                    </div>
+                    <p class="mt-2 text-xs text-gray-500">Minimal 2 huruf. Riwayat terakhir dihitung dari kunjungan seluruh Sales.</p>
+                </div>
+                @if (mb_strlen(trim($storeSearch)) >= 2)
+                    <div class="grid max-h-[460px] gap-3 overflow-y-auto p-3 md:grid-cols-2 xl:grid-cols-3">
+                        @forelse ($this->storeSearchResults as $store)
+                            <article wire:key="search-store-{{ $store['id'] }}" class="rounded-xl border p-4 {{ $store['visited_today'] ? 'border-green-500/30 bg-green-500/5' : 'border-gray-200 dark:border-white/10' }}">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0"><div class="truncate font-bold">{{ $store['name'] }}</div><div class="mt-1 text-xs text-gray-500">{{ $store['code'] }}</div></div>
+                                    @if ($store['in_route'])<span class="rounded-full bg-amber-500/15 px-2 py-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">DI RUTE</span>@endif
+                                </div>
+                                <p class="mt-2 line-clamp-2 text-xs text-gray-500">{{ $store['address'] }}</p>
+                                <div class="mt-3 flex flex-wrap gap-2 text-[11px]">
+                                    <span class="rounded-lg bg-gray-100 px-2 py-1 font-semibold dark:bg-white/5">{{ $store['last_visit_label'] }}</span>
+                                    @if ($store['last_visit_sales'])<span class="rounded-lg bg-gray-100 px-2 py-1 text-gray-500 dark:bg-white/5">oleh {{ $store['last_visit_sales'] }}</span>@endif
+                                    @if ($store['distance_meters'] !== null)<span class="rounded-lg bg-green-500/10 px-2 py-1 font-semibold text-green-700 dark:text-green-300">{{ $store['distance_meters'] < 1000 ? number_format($store['distance_meters']).' m' : number_format($store['distance_meters'] / 1000, 1, ',', '.').' km' }}</span>@endif
+                                </div>
+                                <div class="mt-3 flex gap-2">
+                                    @if (! $store['in_route'])
+                                        <button type="button" wire:click="addStoreToRoute({{ $store['id'] }})" class="min-h-10 flex-1 rounded-xl border border-amber-600 px-3 text-xs font-bold text-amber-700 hover:bg-amber-500/10 dark:text-amber-300">+ Tambah ke rute</button>
+                                    @endif
+                                    <button type="button" wire:click="selectStore({{ $store['id'] }})" @disabled($store['visited_today']) class="min-h-10 flex-1 rounded-xl bg-amber-600 px-3 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-40">Buat transaksi</button>
+                                </div>
+                            </article>
+                        @empty
+                            <div class="col-span-full py-10 text-center text-sm text-gray-500">Toko tidak ditemukan. Coba kata kunci atau filter lain.</div>
+                        @endforelse
+                    </div>
+                @endif
             </section>
 
             <section class="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(330px,.85fr)]">
@@ -58,15 +104,13 @@
 
                 <aside class="flex max-h-[680px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
                     <div class="border-b border-gray-200 p-4 dark:border-white/10">
-                        <h3 class="font-bold text-gray-950 dark:text-white">Daftar Toko</h3>
-                        <p class="mt-1 text-xs text-gray-500">Ikuti urutan rute atau pilih toko terdekat.</p>
+                        <h3 class="font-bold text-gray-950 dark:text-white">Rute Saya</h3>
+                        <p class="mt-1 text-xs text-gray-500">Atur urutan atau hapus toko yang belum diproses.</p>
                     </div>
                     <div class="space-y-2 overflow-y-auto p-3">
                         @foreach ($routeStores as $routeStore)
                             @php($visit = $routeStore->latestVisit)
-                            <button
-                                type="button"
-                                @if (! $visit) wire:click="selectStore({{ $routeStore->store_id }})" @else disabled @endif
+                            <div
                                 wire:key="route-store-{{ $routeStore->id }}"
                                 class="flex w-full items-start gap-3 rounded-xl border p-3 text-left transition {{ $visit ? 'cursor-not-allowed border-transparent bg-gray-100 opacity-55 dark:bg-white/5' : ($selectedStoreId === $routeStore->store_id ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-500/15 dark:bg-amber-500/10' : 'border-gray-200 hover:border-amber-400 hover:bg-amber-50/60 dark:border-white/10 dark:hover:bg-white/5') }}"
                             >
@@ -77,10 +121,16 @@
                                     @if ($visit)
                                         <span class="mt-2 inline-flex rounded-full bg-gray-200 px-2 py-1 text-[10px] font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300">{{ $visit->visit_status->label() }} · {{ $visit->completed_at?->format('H:i') }}</span>
                                     @else
-                                        <span class="mt-2 inline-flex rounded-full bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">Belum dikunjungi</span>
+                                        <span class="mt-2 inline-flex rounded-full bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">{{ $routeStore->store->latestVisit ? 'Terakhir '.$routeStore->store->latestVisit->arrived_at->diffForHumans() : 'Belum pernah dikunjungi' }}</span>
                                     @endif
                                 </span>
-                            </button>
+                                @if (! $visit)
+                                    <span class="grid shrink-0 gap-1">
+                                        <button type="button" wire:click="selectStore({{ $routeStore->store_id }})" title="Buat transaksi" class="rounded-lg bg-amber-600 px-2 py-1.5 text-xs font-bold text-white">Pilih</button>
+                                        <span class="flex gap-1"><button type="button" wire:click="moveRouteStore({{ $routeStore->id }}, 'up')" title="Naikkan" class="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-white/10">↑</button><button type="button" wire:click="moveRouteStore({{ $routeStore->id }}, 'down')" title="Turunkan" class="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-white/10">↓</button><button type="button" wire:click="removeStoreFromRoute({{ $routeStore->id }})" wire:confirm="Hapus toko ini dari rute hari ini?" title="Hapus dari rute" class="rounded bg-red-500/10 px-2 py-1 text-xs text-red-600">×</button></span>
+                                    </span>
+                                @endif
+                            </div>
                         @endforeach
                     </div>
                 </aside>
@@ -91,8 +141,8 @@
                     <div class="mb-3 flex items-center justify-between"><div><h3 class="font-bold text-gray-950 dark:text-white">Toko di Sekitar Saya</h3><p class="text-xs text-gray-500">Diurutkan berdasarkan jarak GPS saat ini.</p></div><button type="button" wire:click="recalculateRoute" class="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold dark:border-white/10">Hitung ulang rute</button></div>
                     <div class="flex gap-3 overflow-x-auto pb-1">
                         @forelse ($nearbyStores as $store)
-                            <button type="button" wire:click="selectStore({{ $store['id'] }})" @disabled(! $store['in_today_route'] || $store['visited']) class="min-w-56 rounded-xl border p-3 text-left {{ $store['visited'] ? 'cursor-not-allowed bg-gray-100 opacity-50 dark:bg-white/5' : 'border-gray-200 hover:border-amber-500 dark:border-white/10' }}">
-                                <span class="block truncate text-sm font-bold">{{ $store['name'] }}</span><span class="mt-1 block text-xs text-gray-500">{{ number_format($store['distance_meters']) }} meter</span><span class="mt-2 block text-[10px] font-semibold {{ $store['in_today_route'] ? 'text-green-600' : 'text-red-500' }}">{{ $store['visited'] ? 'Sudah selesai' : ($store['in_today_route'] ? 'Dalam jadwal' : 'Di luar jadwal') }}</span>
+                            <button type="button" wire:click="selectStore({{ $store['id'] }})" @disabled($store['visited']) class="min-w-64 rounded-xl border p-3 text-left {{ $store['visited'] ? 'cursor-not-allowed bg-gray-100 opacity-50 dark:bg-white/5' : 'border-gray-200 hover:border-amber-500 dark:border-white/10' }}">
+                                <span class="block truncate text-sm font-bold">{{ $store['name'] }}</span><span class="mt-1 block text-xs text-gray-500">{{ number_format($store['distance_meters']) }} meter</span><span class="mt-2 block text-[10px] font-semibold {{ $store['in_today_route'] ? 'text-green-600' : 'text-amber-600' }}">{{ $store['visited'] ? 'Sudah selesai' : ($store['in_today_route'] ? 'Dalam rute · '.$store['last_visit_label'] : '+ Otomatis masuk rute · '.$store['last_visit_label']) }}</span>
                             </button>
                         @empty
                             <p class="py-4 text-sm text-gray-500">Tidak ada toko dalam radius pencarian.</p>
@@ -164,9 +214,9 @@
                             <button type="button" wire:click="saveTransaction({{ $this->selectedStore->id }})" wire:loading.attr="disabled" @disabled($currentLatitude === null) class="min-h-12 w-full rounded-xl bg-amber-600 px-4 font-bold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-40">Simpan & Selesaikan</button>
                             <div class="rounded-xl border border-dashed border-gray-300 p-3 text-center text-xs text-gray-500 dark:border-white/10">🧾 Tombol cetak struk muncul setelah transaksi berhasil disimpan.</div>
                             <div class="grid grid-cols-1 gap-2">
-                                <button type="button" x-on:click="visit($wire, {{ $this->selectedStore->id }}, 'closed', false)" @disabled($currentLatitude === null) class="min-h-10 rounded-xl border border-gray-300 text-sm font-semibold disabled:opacity-40 dark:border-white/10">Toko tutup</button>
-                                <button type="button" x-on:click="visit($wire, {{ $this->selectedStore->id }}, 'postponed', false)" @disabled($currentLatitude === null) class="min-h-10 rounded-xl border border-gray-300 text-sm font-semibold disabled:opacity-40 dark:border-white/10">Ditunda</button>
-                                <button type="button" x-on:click="visit($wire, {{ $this->selectedStore->id }}, 'not_found', false)" @disabled($currentLatitude === null) class="min-h-10 rounded-xl border border-gray-300 text-sm font-semibold disabled:opacity-40 dark:border-white/10">Tidak ditemukan</button>
+                                <button type="button" x-on:click="visit($wire, {{ $this->selectedStore->id }}, 'closed', true)" @disabled($currentLatitude === null) class="min-h-10 rounded-xl border border-gray-300 text-sm font-semibold disabled:opacity-40 dark:border-white/10">Toko tutup</button>
+                                <button type="button" x-on:click="visit($wire, {{ $this->selectedStore->id }}, 'postponed', true)" @disabled($currentLatitude === null) class="min-h-10 rounded-xl border border-gray-300 text-sm font-semibold disabled:opacity-40 dark:border-white/10">Ditunda</button>
+                                <button type="button" x-on:click="visit($wire, {{ $this->selectedStore->id }}, 'not_found', true)" @disabled($currentLatitude === null) class="min-h-10 rounded-xl border border-gray-300 text-sm font-semibold disabled:opacity-40 dark:border-white/10">Tidak ditemukan</button>
                             </div>
                         </div>
                     </div>

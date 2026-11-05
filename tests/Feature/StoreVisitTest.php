@@ -7,14 +7,14 @@ use App\Actions\RecordStoreTransaction;
 use App\Actions\RecordStoreVisit;
 use App\Actions\ReverseStoreTransaction;
 use App\Data\Coordinate;
-use App\Enums\VisitStatus;
 use App\Enums\StockTransferStatus;
 use App\Enums\StockTransferType;
+use App\Enums\VisitStatus;
 use App\Models\DailyRoute;
 use App\Models\Product;
+use App\Models\StockTransfer;
 use App\Models\Store;
 use App\Models\StoreAccountEntry;
-use App\Models\StockTransfer;
 use App\Models\User;
 use App\Services\StockLocationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -40,7 +40,9 @@ class StoreVisitTest extends TestCase
         $action = app(RecordStoreVisit::class);
 
         $action->execute($sales, $second, new Coordinate(-8.58, 116.10), VisitStatus::Visited);
-        $action->execute($sales, $first, new Coordinate(-8.58, 116.10), VisitStatus::Closed);
+        $action->execute($sales, $first, new Coordinate(-8.58, 116.10), VisitStatus::Closed, [
+            'exception_reason' => 'Toko tutup saat didatangi.',
+        ]);
 
         $this->assertSame(1, $route->routeStores()->where('store_id', $second->id)->value('actual_order'));
         $this->assertSame(2, $route->routeStores()->where('store_id', $first->id)->value('actual_order'));
@@ -90,6 +92,7 @@ class StoreVisitTest extends TestCase
             $store,
             new Coordinate(-8.58, 116.10),
             VisitStatus::Closed,
+            ['exception_reason' => 'Toko tutup saat didatangi.'],
         );
 
         $this->assertSame($route->id, $visit->daily_route_id);

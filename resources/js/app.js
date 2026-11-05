@@ -659,7 +659,7 @@ window.salesRouteWorkspace = (config) => ({
         this.message = 'Posisi memakai koordinat toko (GPS perangkat tidak dipakai).';
     },
     async visit(wire, storeId, status, needsReason = false) {
-        const reason = needsReason ? window.prompt('Tuliskan alasan kunjungan di luar rute:') : null;
+        const reason = needsReason ? window.prompt('Tuliskan alasan atau kondisi kunjungan toko:') : null;
         if (needsReason && !reason) return;
         await wire.markVisit(storeId, status, reason);
     },

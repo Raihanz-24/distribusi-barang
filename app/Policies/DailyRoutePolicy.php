@@ -19,12 +19,14 @@ class DailyRoutePolicy
 
     public function create(User $user): bool
     {
+        // Sales membuat rute miliknya lewat workspace Transaksi Toko yang
+        // mengunci sales_id ke akun sendiri. Form resource tetap khusus Admin.
         return $user->isAdmin();
     }
 
     public function update(User $user, DailyRoute $dailyRoute): bool
     {
-        return $user->isAdmin();
+        return $user->isAdmin() || ($user->isSales() && $dailyRoute->sales_id === $user->id);
     }
 
     public function delete(User $user, DailyRoute $dailyRoute): bool

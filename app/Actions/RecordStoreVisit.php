@@ -4,7 +4,6 @@ namespace App\Actions;
 
 use App\Data\Coordinate;
 use App\Enums\VisitStatus;
-use App\Models\DailyRoute;
 use App\Models\Store;
 use App\Models\StoreVisit;
 use App\Models\User;
@@ -25,12 +24,23 @@ class RecordStoreVisit
             $position,
             new Coordinate((float) $store->latitude, (float) $store->longitude),
         );
-        $needsReason = ! $routeStore || $distance > config('maps.nearby_radius_meters');
+        $needsReason = $status !== VisitStatus::Visited
+            || ! $route
+            || $distance > config('maps.nearby_radius_meters');
         if ($needsReason && blank($data['exception_reason'] ?? null)) {
-            throw ValidationException::withMessages(['exception_reason' => 'Alasan wajib diisi untuk toko di luar rute atau lokasi yang jauh.']);
+            throw ValidationException::withMessages([
+                'exception_reason' => 'Alasan wajib diisi untuk hasil kunjungan tanpa transaksi, toko di luar rute, atau lokasi yang jauh.',
+            ]);
         }
         if (! $routeStore && ! config('maps.allow_outside_route_visits')) {
             throw ValidationException::withMessages(['store_id' => 'Kunjungan di luar rute dinonaktifkan oleh Admin.']);
+        }
+
+        // Toko yang ditemukan Sales di lapangan otomatis menjadi bagian dari
+        // rute hari itu. Penambahan dilakukan setelah validasi agar percobaan
+        // kunjungan yang gagal tidak meninggalkan data rute setengah jadi.
+        if ($route && ! $routeStore) {
+            $routeStore = app(ManageSalesRoute::class)->addStore($route, $store, $sales);
         }
 
         return DB::transaction(function () use ($sales, $store, $position, $status, $data, $route, $routeStore, $distance): StoreVisit {

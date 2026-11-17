@@ -311,20 +311,66 @@
         state.bleDevice = device;
         state.bleCharacteristic = characteristic;
 
-        device.addEventListener('gattserverdisconnected', () => {
-            state.bleDevice = null;
-            state.bleCharacteristic = null;
-            log('Bluetooth terputus');
-        });
+        device.addEventListener('gattserverdisconnected', onBleDisconnect);
 
         return device;
     }
 
-    async function printViaBluetooth(bytes) {
-        if (!state.bleDevice || !state.bleCharacteristic || !state.bleDevice.gatt.connected) {
-            await pickBleDevice();
+    /**
+     * Saat printer Bluetooth memutuskan diri, jangan buang referensi perangkat.
+     * Referensi tetap dipakai agar bisa disambung ulang lewat gatt.connect()
+     * tanpa memunculkan dialog pairing lagi.
+     */
+    function onBleDisconnect() {
+        state.bleCharacteristic = null;
+        log('Bluetooth terputus (perangkat tetap diingat)');
+    }
+
+    /**
+     * Memastikan ada koneksi Bluetooth aktif. Urutan prioritas:
+     *  1. koneksi yang sudah aktif,
+     *  2. sambung ulang ke perangkat yang sama (tanpa dialog),
+     *  3. perangkat yang diingat browser via getDevices() (tanpa dialog),
+     *  4. terakhir, minta pilih perangkat (perlu user gesture).
+     */
+    async function ensureBleConnected() {
+        if (state.bleDevice?.gatt?.connected && state.bleCharacteristic) {
+            return;
         }
 
+        if (state.bleDevice?.gatt) {
+            try {
+                const server = await state.bleDevice.gatt.connect();
+                state.bleCharacteristic = await resolveBleCharacteristic(server);
+                log('BLE tersambung ulang ke perangkat yang sama.');
+                return;
+            } catch (error) {
+                log(`Sambung ulang gagal: ${error.message}`);
+            }
+        }
+
+        if (navigator.bluetooth?.getDevices) {
+            try {
+                const devices = await navigator.bluetooth.getDevices();
+                const device = devices.find((item) => item.gatt) ?? devices[0];
+
+                if (device) {
+                    const server = await device.gatt.connect();
+                    state.bleDevice = device;
+                    state.bleCharacteristic = await resolveBleCharacteristic(server);
+                    device.addEventListener('gattserverdisconnected', onBleDisconnect);
+                    log(`BLE memakai perangkat yang diingat browser: ${device.name || '(tanpa nama)'}`);
+                    return;
+                }
+            } catch (error) {
+                log(`getDevices gagal: ${error.message}`);
+            }
+        }
+
+        await pickBleDevice();
+    }
+
+    async function printViaBluetooth(bytes) {
         const characteristic = state.bleCharacteristic;
         const withoutResponse = Boolean(characteristic.properties.writeWithoutResponse);
 
@@ -431,9 +477,9 @@
                 }
 
                 if (channel === 'bluetooth') {
-                    if (!state.bleDevice || !state.bleCharacteristic || !state.bleDevice.gatt.connected) {
-                        this.status = 'Pilih printer Bluetooth...';
-                        await pickBleSafe();
+                    if (!state.bleDevice?.gatt?.connected || !state.bleCharacteristic) {
+                        this.status = 'Menyambung ke printer Bluetooth...';
+                        await ensureBleConnected();
                     }
                     this.status = await printViaBluetooth(await fetchReceiptBytes(url));
                     return;
@@ -450,9 +496,9 @@
                         throw usbError;
                     }
 
-                    if (!state.bleDevice || !state.bleCharacteristic || !state.bleDevice.gatt.connected) {
+                    if (!state.bleDevice?.gatt?.connected || !state.bleCharacteristic) {
                         this.status = 'Mencoba Bluetooth...';
-                        await pickBleSafe();
+                        await ensureBleConnected();
                     }
                     this.status = await printViaBluetooth(await fetchReceiptBytes(url));
                 }

@@ -1,5 +1,6 @@
 @if (auth()->user()?->isSales())
-    <div id="pancor-gps-gate" class="pancor-gps-gate pancor-gps-gate--locked" role="dialog" aria-modal="true" aria-labelledby="pancor-gps-gate-title" aria-hidden="false">
+    @persist('pancor-gps-gate')
+    <div id="pancor-gps-gate" class="pancor-gps-gate" role="dialog" aria-modal="true" aria-labelledby="pancor-gps-gate-title" aria-hidden="true">
         <div class="pancor-gps-gate__backdrop" aria-hidden="true"></div>
         <div class="pancor-gps-gate__card">
             <div class="pancor-gps-gate__icon">
@@ -11,48 +12,62 @@
             <h2 id="pancor-gps-gate-title">GPS Belum Diaktifkan</h2>
             <p>Lokasi wajib aktif sebelum Anda masuk ke aplikasi. Nyalakan GPS atau izinkan akses lokasi pada perangkat/browser Anda, lalu tekan tombol di bawah.</p>
             <button type="button" class="pancor-gps-gate__retry" data-gps-retry>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
-                    <path d="M21 3v6h-6"/>
-                </svg>
-                Coba Lagi
+                <span class="pancor-gps-gate__retry-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
+                        <path d="M21 3v6h-6"/>
+                    </svg>
+                </span>
+                <span class="pancor-gps-gate__spinner" aria-hidden="true"></span>
+                <span>Coba Lagi</span>
             </button>
             <p class="pancor-gps-gate__hint">Jika tetap tidak muncul, pastikan aplikasi dibuka melalui HTTPS dan izin lokasi diizinkan.</p>
         </div>
     </div>
+    @endpersist
 
     <script data-navigate-once>
         (() => {
             const gate = document.getElementById('pancor-gps-gate');
             if (!gate) return;
 
-            const unlock = () => { gate.classList.remove('pancor-gps-gate--locked'); gate.setAttribute('aria-hidden', 'true'); };
-            const lock = () => { gate.classList.add('pancor-gps-gate--locked'); gate.setAttribute('aria-hidden', 'false'); };
+            const retryBtn = gate.querySelector('[data-gps-retry]');
+            const show = () => { gate.classList.add('pancor-gps-gate--locked'); gate.setAttribute('aria-hidden', 'false'); };
+            const hide = () => { gate.classList.remove('pancor-gps-gate--locked'); gate.setAttribute('aria-hidden', 'true'); };
+            const setLoading = on => {
+                if (!retryBtn) return;
+                retryBtn.disabled = on;
+                retryBtn.classList.toggle('pancor-gps-gate__retry--loading', on);
+            };
 
+            // Cek cepat: tanpa akurasi tinggi + pakai cache posisi terakhir,
+            // sehingga jika GPS baru saja aktif hasilnya langsung (tanpa delay).
             const check = () => {
                 if (!('geolocation' in navigator) || !window.isSecureContext) {
-                    lock();
+                    show();
                     return;
                 }
 
+                setLoading(true);
                 navigator.geolocation.getCurrentPosition(
-                    unlock,
-                    lock,
-                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 },
+                    () => { hide(); setLoading(false); },
+                    () => { show(); setLoading(false); },
+                    { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
                 );
             };
 
-            // Auto-buka saat GPS dinyalakan di tengah sesi.
+            // Pantau terus: buka otomatis saat GPS menyala, tutup otomatis bila mati.
             if ('geolocation' in navigator && window.isSecureContext) {
-                navigator.geolocation.watchPosition(unlock, () => {}, {
-                    enableHighAccuracy: true,
+                navigator.geolocation.watchPosition(() => hide(), () => show(), {
+                    enableHighAccuracy: false,
                     timeout: 30000,
-                    maximumAge: 30000,
+                    maximumAge: 60000,
                 });
             }
 
-            gate.querySelector('[data-gps-retry]')?.addEventListener('click', check);
+            retryBtn?.addEventListener('click', check);
 
+            // Mulai tersembunyi (tidak terkunci) agar tidak berkedip saat navigasi.
             check();
         })();
     </script>
@@ -67,10 +82,16 @@
         .pancor-gps-gate__icon svg{width:38px;height:38px}
         .pancor-gps-gate__card h2{margin:0 0 10px;font-size:20px;font-weight:800}
         .pancor-gps-gate__card p{margin:0 0 20px;font-size:14px;line-height:1.6;opacity:.78}
-        .pancor-gps-gate__retry{display:inline-flex;align-items:center;justify-content:center;gap:9px;border:0;border-radius:13px;background:#c97832;padding:13px 22px;color:#fff;font:700 14px/1 system-ui;cursor:pointer;box-shadow:0 10px 25px rgba(201,120,50,.35);transition:transform .12s ease,filter .12s ease}
+        .pancor-gps-gate__retry{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-width:150px;border:0;border-radius:13px;background:#c97832;padding:13px 22px;color:#fff;font:700 14px/1 system-ui;cursor:pointer;box-shadow:0 10px 25px rgba(201,120,50,.35);transition:transform .12s ease,filter .12s ease}
         .pancor-gps-gate__retry:hover{filter:brightness(1.06)}
         .pancor-gps-gate__retry:active{transform:scale(.97)}
-        .pancor-gps-gate__retry svg{width:18px;height:18px}
+        .pancor-gps-gate__retry:disabled{cursor:wait;opacity:.85}
+        .pancor-gps-gate__retry-icon{display:inline-flex}
+        .pancor-gps-gate__retry-icon svg{width:18px;height:18px}
+        .pancor-gps-gate__spinner{display:none;width:18px;height:18px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:pancor-gps-spin .7s linear infinite}
+        .pancor-gps-gate__retry--loading .pancor-gps-gate__retry-icon{display:none}
+        .pancor-gps-gate__retry--loading .pancor-gps-gate__spinner{display:inline-block}
+        @keyframes pancor-gps-spin{to{transform:rotate(360deg)}}
         .pancor-gps-gate__hint{margin:18px 0 0 !important;font-size:12px !important;opacity:.55 !important}
     </style>
 @endif

@@ -7,7 +7,48 @@
 <div
     id="sales-location-panel"
     data-endpoint="{{ $endpoint }}"
-    x-data="salesLocationTracker()"
+    x-data="{
+        loading: false,
+        mapUrl(lat, lng) {
+            const delta = 0.012;
+            const bbox = (lng - delta) + ',' + (lat - delta) + ',' + (lng + delta) + ',' + (lat + delta);
+            return 'https://www.openstreetmap.org/export/embed.html?bbox=' + encodeURIComponent(bbox)
+                + '&layer=mapnik&marker=' + encodeURIComponent(lat + ',' + lng);
+        },
+        async refresh() {
+            if (this.loading) return;
+            this.loading = true;
+            const panel = this.$el;
+            try {
+                const res = await fetch(panel.dataset.endpoint, { headers: { Accept: 'application/json' } });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const d = await res.json();
+
+                if (!d.found) { window.location.reload(); return; }
+
+                const el = name => panel.querySelector('[data-field=&quot;' + name + '&quot;]');
+
+                el('formatted').textContent = d.formatted;
+                el('human').textContent = d.human;
+                el('human').className = 'text-xs ' + (d.is_stale ? 'text-danger-600' : 'text-success-600');
+                el('accuracy').textContent = d.accuracy_meters != null
+                    ? '± ' + Number(d.accuracy_meters).toLocaleString('id-ID') + ' meter'
+                    : 'Tidak tersedia';
+                el('coords').textContent = Number(d.latitude).toFixed(7) + ', ' + Number(d.longitude).toFixed(7);
+
+                el('stale-banner').innerHTML = d.is_stale
+                    ? '<div class=&quot;rounded-xl bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:bg-warning-400/10 dark:text-warning-300&quot;>Posisi ini sudah lebih dari 15 menit. Sales mungkin menutup aplikasi, menonaktifkan GPS, atau sedang kehilangan koneksi.</div>'
+                    : '';
+
+                el('map').src = this.mapUrl(d.latitude, d.longitude) + '&_ts=' + Date.now();
+                el('nav').setAttribute('href', 'https://www.google.com/maps/dir/?api=1&destination=' + d.latitude + ',' + d.longitude);
+            } catch (_) {
+                // Gagal fetch: biarkan nilai lama.
+            } finally {
+                this.loading = false;
+            }
+        },
+    }"
 >
 @if ($location)
     @php
@@ -21,7 +62,7 @@
         <div class="flex items-center justify-between gap-3">
             <h3 class="text-sm font-semibold text-gray-950 dark:text-white">Lokasi {{ $sales->name }}</h3>
             <button type="button" @click="refresh()" :disabled="loading" class="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-primary-500 disabled:cursor-wait disabled:opacity-70">
-                <svg x-show="!loading" x-cloak class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg x-show="!loading" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
                     <path d="M21 3v6h-6"/>
                 </svg>
@@ -72,7 +113,7 @@
         <div class="flex items-center justify-between gap-3">
             <h3 class="text-sm font-semibold text-gray-950 dark:text-white">Lokasi {{ $sales->name }}</h3>
             <button type="button" @click="refresh()" :disabled="loading" class="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-primary-500 disabled:cursor-wait disabled:opacity-70">
-                <svg x-show="!loading" x-cloak class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg x-show="!loading" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
                     <path d="M21 3v6h-6"/>
                 </svg>

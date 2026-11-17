@@ -4,6 +4,7 @@ namespace App\Filament\Resources\SalesStockTransfers\Pages;
 
 use App\Actions\DeleteSalesReturnSubmission;
 use App\Actions\PurgeSalesDistribution;
+use App\Actions\SubmitSalesReturn;
 use App\Enums\StockTransferStatus;
 use App\Enums\StockTransferType;
 use App\Filament\Resources\SalesStockTransfers\SalesStockTransferResource;
@@ -121,6 +122,29 @@ class ListSalesStockTransfers extends ListRecords
         } catch (ValidationException $exception) {
             Notification::make()
                 ->title('Distribusi tidak dapat dihapus')
+                ->body(collect($exception->errors())->flatten()->first())
+                ->danger()
+                ->persistent()
+                ->send();
+        }
+    }
+
+    public function finishDistribution(int $record): void
+    {
+        try {
+            $settlement = app(SubmitSalesReturn::class)->execute(
+                StockTransfer::query()->findOrFail($record),
+                auth()->user(),
+            );
+
+            Notification::make()
+                ->title('Pengajuan dikirim kepada Admin')
+                ->body('Sisa stok dihitung sistem: '.$settlement->returnTransfer->items->sum('quantity_issued').' bungkus.')
+                ->success()
+                ->send();
+        } catch (ValidationException $exception) {
+            Notification::make()
+                ->title('Pengajuan tidak dapat dibuat')
                 ->body(collect($exception->errors())->flatten()->first())
                 ->danger()
                 ->persistent()

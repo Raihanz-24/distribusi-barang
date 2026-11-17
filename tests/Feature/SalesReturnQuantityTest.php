@@ -14,6 +14,7 @@ use App\Enums\StockTransferType;
 use App\Enums\UserRole;
 use App\Filament\Resources\SalesStockTransfers\Pages\CreateSalesStockTransfer;
 use App\Filament\Resources\SalesStockTransfers\Pages\ListSalesStockTransfers;
+use App\Filament\Resources\SalesStockTransfers\SalesStockTransferResource;
 use App\Models\DailyRoute;
 use App\Models\DailyRouteStore;
 use App\Models\Product;
@@ -196,6 +197,22 @@ class SalesReturnQuantityTest extends TestCase
         $this->assertSame(20, (int) $return->items->sum('quantity_entered'));
     }
 
+    public function test_sales_can_finish_distribution_from_mobile_card(): void
+    {
+        $pickup = $this->distribute(40);
+        $this->depositToStore(20);
+        $this->actingAs($this->sales);
+
+        Livewire::test(ListSalesStockTransfers::class)
+            ->set('activeTab', 'pickup')
+            ->call('finishDistribution', $pickup->id);
+
+        $return = $pickup->fresh()->returnTransfer;
+
+        $this->assertNotNull($return, 'Sales harus dapat menekan Selesai dari kartu mobile.');
+        $this->assertSame(20, (int) $return->items->sum('quantity_issued'));
+    }
+
     public function test_return_detail_modal_shows_expected_and_received_clearly(): void
     {
         $pickup = $this->distribute(40);
@@ -225,7 +242,7 @@ class SalesReturnQuantityTest extends TestCase
      */
     private function creatableOptions(): array
     {
-        $method = new \ReflectionMethod(\App\Filament\Resources\SalesStockTransfers\SalesStockTransferResource::class, 'creatableTransferTypeOptions');
+        $method = new \ReflectionMethod(SalesStockTransferResource::class, 'creatableTransferTypeOptions');
         $method->setAccessible(true);
 
         return $method->invoke(null);

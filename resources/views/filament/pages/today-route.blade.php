@@ -122,7 +122,7 @@
                                     @if (! $store['in_route'])
                                         <button type="button" wire:click="addStoreToRoute({{ $store['id'] }})" class="min-h-10 flex-1 rounded-xl border border-amber-600 px-3 text-xs font-bold text-amber-700 hover:bg-amber-500/10 dark:text-amber-300">+ Tambah ke rute</button>
                                     @endif
-                                    <button type="button" wire:click="selectStore({{ $store['id'] }})" class="min-h-10 flex-1 rounded-xl bg-amber-600 px-3 text-xs font-bold text-white hover:bg-amber-700">Buat transaksi</button>
+                                    <button type="button" wire:click="selectStore({{ $store['id'] }})" @disabled($store['visited_today'] || ! $stockSummary['active']) class="min-h-10 flex-1 rounded-xl bg-amber-600 px-3 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-40">Buat transaksi</button>
                                 </div>
                             </article>
                         @empty
@@ -168,7 +168,7 @@
                                 </span>
                                 @if (! $visit)
                                     <span class="grid shrink-0 gap-1">
-                                        <button type="button" wire:click="selectStore({{ $routeStore->store_id }})" title="Buat transaksi" class="rounded-lg bg-amber-600 px-2 py-1.5 text-xs font-bold text-white">Pilih</button>
+                                        <button type="button" wire:click="selectStore({{ $routeStore->store_id }})" @disabled(! $stockSummary['active']) title="Buat transaksi" class="rounded-lg bg-amber-600 px-2 py-1.5 text-xs font-bold text-white disabled:opacity-40">Pilih</button>
                                         <span class="flex gap-1"><button type="button" wire:click="moveRouteStore({{ $routeStore->id }}, 'up')" title="Naikkan" class="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-white/10">↑</button><button type="button" wire:click="moveRouteStore({{ $routeStore->id }}, 'down')" title="Turunkan" class="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-white/10">↓</button><button type="button" wire:click="removeStoreFromRoute({{ $routeStore->id }})" wire:confirm="Hapus toko ini dari rute hari ini?" title="Hapus dari rute" class="rounded bg-red-500/10 px-2 py-1 text-xs text-red-600">×</button></span>
                                     </span>
                                 @endif
@@ -183,7 +183,7 @@
                     <div class="mb-3 flex items-center justify-between"><div><h3 class="font-bold text-gray-950 dark:text-white">Toko di Sekitar Saya</h3><p class="text-xs text-gray-500">Diurutkan berdasarkan jarak GPS saat ini.</p></div><button type="button" wire:click="recalculateRoute" class="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold dark:border-white/10">Hitung ulang rute</button></div>
                     <div class="flex gap-3 overflow-x-auto pb-1">
                         @forelse ($nearbyStores as $store)
-                            <button type="button" wire:click="selectStore({{ $store['id'] }})" class="min-w-64 rounded-xl border p-3 text-left {{ $store['visited'] ? 'cursor-not-allowed bg-gray-100 opacity-50 dark:bg-white/5' : 'border-gray-200 hover:border-amber-500 dark:border-white/10' }}">
+                            <button type="button" wire:click="selectStore({{ $store['id'] }})" @disabled($store['visited'] || ! $stockSummary['active']) class="min-w-64 rounded-xl border p-3 text-left {{ $store['visited'] ? 'cursor-not-allowed bg-gray-100 opacity-50 dark:bg-white/5' : 'border-gray-200 hover:border-amber-500 disabled:opacity-40 dark:border-white/10' }}">
                                 <span class="block truncate text-sm font-bold">{{ $store['name'] }}</span><span class="mt-1 block text-xs text-gray-500">{{ number_format($store['distance_meters']) }} meter</span><span class="mt-2 block text-[10px] font-semibold {{ $store['in_today_route'] ? 'text-green-600' : 'text-amber-600' }}">{{ $store['visited'] ? 'Sudah selesai' : ($store['in_today_route'] ? 'Dalam rute · '.$store['last_visit_label'] : '+ Otomatis masuk rute · '.$store['last_visit_label']) }}</span>
                             </button>
                         @empty

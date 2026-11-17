@@ -10,7 +10,7 @@ use App\Enums\StockTransferType;
 use App\Filament\Resources\SalesStockTransfers\SalesStockTransferResource;
 use App\Livewire\Admin\DailyStoreMonitoringTable;
 use App\Models\StockTransfer;
-use Filament\Actions\CreateAction;
+use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\EmbeddedTable;
@@ -77,8 +77,10 @@ class ListSalesStockTransfers extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make()
-                ->label('Transaksi')
+            Action::make('createDistribution')
+                ->label('Buat Distribusi')
+                ->icon('heroicon-o-plus')
+                ->url(SalesStockTransferResource::getUrl('create'))
                 ->visible(fn () => auth()->user()->isAdmin()),
         ];
     }

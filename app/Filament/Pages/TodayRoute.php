@@ -173,30 +173,6 @@ class TodayRoute extends Page
             return;
         }
 
-        $store = Store::query()
-            ->with('latestVisit')
-            ->where('is_active', true)
-            ->find($storeId);
-
-        if (! $store) {
-            Notification::make()
-                ->title('Toko tidak tersedia untuk transaksi')
-                ->danger()
-                ->send();
-
-            return;
-        }
-
-        if ($store->latestVisit?->arrived_at?->isToday()) {
-            Notification::make()
-                ->title('Toko sudah dikunjungi hari ini')
-                ->body('Transaksi kedua untuk toko yang sama pada hari ini tidak dapat dibuat.')
-                ->warning()
-                ->send();
-
-            return;
-        }
-
         $routeStore = $this->route?->routeStores->firstWhere('store_id', $storeId);
 
         if (! $routeStore) {

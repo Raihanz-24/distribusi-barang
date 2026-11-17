@@ -6,6 +6,7 @@ use App\Http\Controllers\ReverseGeocodeController;
 use App\Http\Controllers\SalesDepositExportController;
 use App\Http\Controllers\SalesReceiptController;
 use App\Http\Controllers\SalesReceiptRawController;
+use App\Http\Controllers\ShowSalesLocationController;
 use App\Http\Controllers\StoreMapDataController;
 use App\Http\Controllers\StoreTransactionExportController;
 use App\Http\Controllers\UpdateSalesLocationController;
@@ -30,4 +31,7 @@ Route::middleware(['auth', EnsureUserIsActive::class])->group(function (): void 
     Route::post('/internal/sales-location', UpdateSalesLocationController::class)
         ->middleware('throttle:10,1')
         ->name('internal.sales-location.update');
+    Route::get('/internal/sales-location/{sales}', ShowSalesLocationController::class)
+        ->middleware('throttle:30,1')
+        ->name('internal.sales-location.show');
 });

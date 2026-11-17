@@ -64,6 +64,54 @@ class SalesLocationTrackingTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_admin_can_show_a_sales_latest_location(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $sales = User::factory()->create();
+        $sales->latestLocation()->create([
+            'latitude' => -7.7583,
+            'longitude' => 113.4158,
+            'accuracy_meters' => 12.4,
+            'recorded_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson(route('internal.sales-location.show', ['sales' => $sales->id]))
+            ->assertOk()
+            ->assertJson([
+                'found' => true,
+                'latitude' => -7.7583,
+                'longitude' => 113.4158,
+                'is_stale' => false,
+            ]);
+    }
+
+    public function test_sales_cannot_show_another_sales_location(): void
+    {
+        $sales = User::factory()->create();
+        $other = User::factory()->create();
+        $other->latestLocation()->create([
+            'latitude' => -7.7583,
+            'longitude' => 113.4158,
+            'recorded_at' => now(),
+        ]);
+
+        $this->actingAs($sales)
+            ->getJson(route('internal.sales-location.show', ['sales' => $other->id]))
+            ->assertForbidden();
+    }
+
+    public function test_admin_gets_not_found_when_location_missing(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $sales = User::factory()->create();
+
+        $this->actingAs($admin)
+            ->getJson(route('internal.sales-location.show', ['sales' => $sales->id]))
+            ->assertOk()
+            ->assertJson(['found' => false]);
+    }
+
     public function test_active_sales_distribution_is_labelled_in_transit(): void
     {
         $transfer = new StockTransfer([

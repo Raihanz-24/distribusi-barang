@@ -419,32 +419,41 @@
                 }
 
                 // Pilih perangkat DULU (gesture masih aktif), baru ambil byte.
+                // Bila perangkat sudah terhubung pada halaman ini, koneksi
+                // dipakai ulang sehingga tidak meminta pairing setiap kali cetak.
                 if (channel === 'usb') {
-                    this.status = 'Pilih printer USB...';
-                    await pickUsbDeviceSafe();
+                    if (!state.usbDevice || !state.usbEndpoint) {
+                        this.status = 'Pilih printer USB...';
+                        await pickUsbDeviceSafe();
+                    }
                     this.status = await printViaUsb(await fetchReceiptBytes(url));
                     return;
                 }
 
                 if (channel === 'bluetooth') {
-                    this.status = 'Pilih printer Bluetooth...';
-                    await pickBleSafe();
+                    if (!state.bleDevice || !state.bleCharacteristic || !state.bleDevice.gatt.connected) {
+                        this.status = 'Pilih printer Bluetooth...';
+                        await pickBleSafe();
+                    }
                     this.status = await printViaBluetooth(await fetchReceiptBytes(url));
                     return;
                 }
 
-                this.status = 'Pilih printer USB...';
-
                 try {
-                    await pickUsbDeviceSafe();
+                    if (!state.usbDevice || !state.usbEndpoint) {
+                        this.status = 'Pilih printer USB...';
+                        await pickUsbDeviceSafe();
+                    }
                     this.status = await printViaUsb(await fetchReceiptBytes(url));
                 } catch (usbError) {
                     if (!('bluetooth' in navigator)) {
                         throw usbError;
                     }
 
-                    this.status = 'Mencoba Bluetooth...';
-                    await pickBleSafe();
+                    if (!state.bleDevice || !state.bleCharacteristic || !state.bleDevice.gatt.connected) {
+                        this.status = 'Mencoba Bluetooth...';
+                        await pickBleSafe();
+                    }
                     this.status = await printViaBluetooth(await fetchReceiptBytes(url));
                 }
             } catch (error) {

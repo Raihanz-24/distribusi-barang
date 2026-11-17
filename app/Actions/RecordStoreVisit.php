@@ -24,6 +24,22 @@ class RecordStoreVisit
             $position,
             new Coordinate((float) $store->latitude, (float) $store->longitude),
         );
+
+        // Hard block: kunjungan/transaksi hanya boleh direkam bila Sales berada
+        // dalam radius tertentu dari lokasi toko. Di luar radius, data ditolak
+        // (tidak bisa diloloskan hanya dengan mengisi alasan).
+        $maxRadius = (int) config('maps.max_transaction_radius_meters', 100);
+        if ($store->latitude === null || $store->longitude === null) {
+            throw ValidationException::withMessages([
+                'store_id' => 'Koordinat toko belum tersedia. Minta Admin melengkapi koordinat toko ini.',
+            ]);
+        }
+        if ($distance > $maxRadius) {
+            throw ValidationException::withMessages([
+                'location' => 'Anda berada di luar radius '.$maxRadius.' meter dari toko ('.number_format($distance).' meter). Pindah lebih dekat ke toko sebelum mencatat data.',
+            ]);
+        }
+
         $needsReason = $status !== VisitStatus::Visited
             || ! $route
             || $distance > config('maps.nearby_radius_meters');

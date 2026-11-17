@@ -160,41 +160,6 @@ class TodayRoute extends Page
         app(ManageSalesRoute::class)->move($routeStore, $direction, auth()->user());
     }
 
-    /**
-     * Fallback ketika GPS perangkat benar-benar tidak dapat dipakai (mis. halaman
-     * diakses lewat http:// sehingga browser memblokir geolocation). Koordinat
-     * toko dipakai sebagai posisi, dan alasannya dicatat pada kunjungan supaya
-     * data tidak diam-diam dianggap berasal dari GPS.
-     */
-    public function useStoreLocation(int $storeId): void
-    {
-        $store = $this->route?->routeStores->firstWhere('store_id', $storeId)?->store
-            ?? Store::query()->find($storeId);
-
-        if (! $store || $store->latitude === null || $store->longitude === null) {
-            Notification::make()
-                ->title('Koordinat toko belum tersedia')
-                ->body('Minta Admin melengkapi koordinat toko ini.')
-                ->danger()
-                ->send();
-
-            return;
-        }
-
-        $this->loadNearby(
-            (float) $store->latitude,
-            (float) $store->longitude,
-            null,
-            'GPS perangkat tidak tersedia; memakai koordinat toko',
-        );
-
-        Notification::make()
-            ->title('Memakai koordinat toko')
-            ->body('GPS perangkat tidak dapat dipakai. Transaksi akan ditandai memakai koordinat toko.')
-            ->warning()
-            ->send();
-    }
-
     public function selectStore(int $storeId): void
     {
         if (! $this->canTransact) {
@@ -229,16 +194,29 @@ class TodayRoute extends Page
     public function markVisit(int $storeId, string $status, ?string $reason = null): void
     {
         abort_if($this->currentLatitude === null || $this->currentLongitude === null, 422);
-        app(RecordStoreVisit::class)->execute(
-            auth()->user(),
-            Store::findOrFail($storeId),
-            new Coordinate($this->currentLatitude, $this->currentLongitude),
-            VisitStatus::from($status),
-            [
-                'location_accuracy' => $this->currentAccuracy,
-                'exception_reason' => $reason ?? $this->locationNote,
-            ],
-        );
+
+        try {
+            app(RecordStoreVisit::class)->execute(
+                auth()->user(),
+                Store::findOrFail($storeId),
+                new Coordinate($this->currentLatitude, $this->currentLongitude),
+                VisitStatus::from($status),
+                [
+                    'location_accuracy' => $this->currentAccuracy,
+                    'exception_reason' => $reason ?? $this->locationNote,
+                ],
+            );
+        } catch (ValidationException $exception) {
+            Notification::make()
+                ->title('Kunjungan tidak dapat disimpan')
+                ->body(collect($exception->errors())->flatten()->first())
+                ->danger()
+                ->persistent()
+                ->send();
+
+            return;
+        }
+
         $this->selectedStoreId = null;
         $this->dispatch('store-visited', storeId: $storeId);
         $this->loadNearby($this->currentLatitude, $this->currentLongitude, $this->currentAccuracy, $this->locationNote);

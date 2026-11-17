@@ -653,11 +653,6 @@ window.salesRouteWorkspace = (config) => ({
             this.message = `${describeError(error)} Anda tetap dapat memakai tombol "Pakai koordinat toko".`;
         }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
     },
-    async useStoreLocation(wire, storeId) {
-        this.message = 'Memakai koordinat toko sebagai posisi...';
-        await wire.useStoreLocation(storeId);
-        this.message = 'Posisi memakai koordinat toko (GPS perangkat tidak dipakai).';
-    },
     async visit(wire, storeId, status, needsReason = false) {
         const reason = needsReason ? window.prompt('Tuliskan alasan atau kondisi kunjungan toko:') : null;
         if (needsReason && !reason) return;

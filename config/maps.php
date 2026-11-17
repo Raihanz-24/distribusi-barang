@@ -7,6 +7,9 @@ return [
     'default_zoom' => (float) env('MAP_DEFAULT_ZOOM', 10),
     'nearby_radius_meters' => (int) env('NEARBY_STORE_RADIUS_METERS', 150),
     'nearby_limit' => (int) env('NEARBY_STORE_LIMIT', 5),
+    // Batas jarak maksimum Sales dari toko untuk dapat mencatat kunjungan/transaksi.
+    // Di luar radius ini data ditolak (hard block).
+    'max_transaction_radius_meters' => (int) env('MAX_TRANSACTION_RADIUS_METERS', 100),
     'routing_provider' => env('ROUTING_PROVIDER', 'local'),
     'osrm_base_url' => env('OSRM_BASE_URL'),
     'http_timeout_seconds' => (int) env('MAP_HTTP_TIMEOUT_SECONDS', 10),

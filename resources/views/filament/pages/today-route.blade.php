@@ -247,10 +247,7 @@
                                     {{ $currentLatitude !== null ? '✓ Lokasi sudah siap' : 'Lokasi belum diambil' }}
                                 </div>
                                 @if ($currentLatitude === null)
-                                    <button type="button" x-on:click="useStoreLocation($wire, {{ $this->selectedStore->id }})" class="mt-3 w-full rounded-lg border border-amber-500/60 px-3 py-2 text-xs font-bold text-amber-700 hover:bg-amber-500/10 dark:text-amber-400">
-                                        📍 Pakai koordinat toko
-                                    </button>
-                                    <p class="mt-2 text-[10px] leading-4 text-gray-500">Gunakan bila GPS perangkat tidak bisa dipakai (mis. akses non-HTTPS). Pilihan ini dicatat pada riwayat kunjungan.</p>
+                                    <p class="mt-2 text-[10px] leading-4 text-gray-500">Nyalakan GPS lalu tekan "⌖ Lokasi Saya" pada peta. Transaksi hanya dapat disimpan bila Anda berada dalam radius {{ config('maps.max_transaction_radius_meters', 100) }} meter dari toko.</p>
                                 @endif
                             </div>
                             <button type="button" wire:click="saveTransaction({{ $this->selectedStore->id }})" wire:loading.attr="disabled" @disabled($currentLatitude === null) class="min-h-12 w-full rounded-xl bg-amber-600 px-4 font-bold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-40">Simpan & Selesaikan</button>

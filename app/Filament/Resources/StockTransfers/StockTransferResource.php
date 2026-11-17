@@ -4,7 +4,9 @@ namespace App\Filament\Resources\StockTransfers;
 
 use App\Actions\ApproveSalesReturn;
 use App\Actions\CompleteSalesPickup;
+use App\Actions\DeleteSalesReturnSubmission;
 use App\Actions\IssueStockTransfer;
+use App\Actions\PurgeSalesDistribution;
 use App\Actions\SubmitSalesReturn;
 use App\Enums\StockTransferStatus;
 use App\Enums\StockTransferType;
@@ -407,6 +409,61 @@ class StockTransferResource extends Resource
                     ]))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Tutup'),
+                Action::make('deleteReturnSubmission')
+                    ->label('Hapus Pengajuan')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->size('xs')
+                    ->button()
+                    ->requiresConfirmation()
+                    ->modalHeading('Hapus pengajuan pengembalian Sales?')
+                    ->modalDescription('Pengajuan yang belum disetujui akan dihapus dan rute Sales dibuka kembali agar dapat melanjutkan transaksi. Stok tidak berubah karena pengajuan pending belum memindahkan stok.')
+                    ->visible(fn (StockTransfer $record) => auth()->user()->isDeveloper()
+                        && $record->transfer_type === StockTransferType::ReturnFromSales
+                        && $record->status === StockTransferStatus::PendingApproval)
+                    ->action(function (StockTransfer $record): void {
+                        try {
+                            app(DeleteSalesReturnSubmission::class)->execute($record, auth()->user());
+                            Notification::make()
+                                ->title('Pengajuan Sales dihapus')
+                                ->body('Rute Sales telah dibuka kembali dan dapat mengajukan ulang.')
+                                ->success()
+                                ->send();
+                        } catch (ValidationException $exception) {
+                            Notification::make()
+                                ->title('Pengajuan tidak dapat dihapus')
+                                ->body(collect($exception->errors())->flatten()->first())
+                                ->danger()->persistent()->send();
+                        }
+                    }),
+                Action::make('purgeDistribution')
+                    ->label('Hapus Distribusi')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->size('xs')
+                    ->button()
+                    ->requiresConfirmation()
+                    ->modalHeading('Hapus seluruh distribusi ini?')
+                    ->modalDescription('Seluruh record distribusi — pengiriman, pengajuan pengembalian, kunjungan toko, jurnal, dan mutasi stok — akan dihapus permanen. Stok yang sedang dibawa Sales juga dianggap hilang. Tindakan ini tidak dapat dibatalkan.')
+                    ->visible(fn (StockTransfer $record) => auth()->user()->isDeveloper()
+                        && in_array($record->transfer_type, [StockTransferType::IssueToSales, StockTransferType::ReturnFromSales], true))
+                    ->action(function (StockTransfer $record): void {
+                        try {
+                            app(PurgeSalesDistribution::class)->execute($record, auth()->user());
+                            Notification::make()
+                                ->title('Distribusi dihapus')
+                                ->body('Seluruh record terkait telah dihapus permanen.')
+                                ->success()
+                                ->send();
+                        } catch (ValidationException $exception) {
+                            Notification::make()
+                                ->title('Distribusi tidak dapat dihapus')
+                                ->body(collect($exception->errors())->flatten()->first())
+                                ->danger()
+                                ->persistent()
+                                ->send();
+                        }
+                    }),
             ], position: RecordActionsPosition::BeforeColumns)
             ->defaultSort('created_at', 'desc');
     }

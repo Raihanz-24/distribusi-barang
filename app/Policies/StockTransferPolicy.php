@@ -36,6 +36,8 @@ class StockTransferPolicy
 
     public function delete(User $user, StockTransfer $transfer): bool
     {
-        return false;
+        return $user->isDeveloper()
+            && $transfer->transfer_type === StockTransferType::ReturnFromSales
+            && $transfer->status === StockTransferStatus::PendingApproval;
     }
 }

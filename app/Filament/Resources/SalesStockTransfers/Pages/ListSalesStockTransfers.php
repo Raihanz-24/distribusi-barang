@@ -2,11 +2,15 @@
 
 namespace App\Filament\Resources\SalesStockTransfers\Pages;
 
+use App\Actions\DeleteSalesReturnSubmission;
+use App\Actions\PurgeSalesDistribution;
 use App\Enums\StockTransferStatus;
 use App\Enums\StockTransferType;
 use App\Filament\Resources\SalesStockTransfers\SalesStockTransferResource;
 use App\Livewire\Admin\DailyStoreMonitoringTable;
+use App\Models\StockTransfer;
 use Filament\Actions\CreateAction;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\EmbeddedTable;
 use Filament\Schemas\Components\Group;
@@ -17,6 +21,7 @@ use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\ValidationException;
 
 class ListSalesStockTransfers extends ListRecords
 {
@@ -75,6 +80,52 @@ class ListSalesStockTransfers extends ListRecords
                 ->label('Transaksi')
                 ->visible(fn () => auth()->user()->isAdmin()),
         ];
+    }
+
+    public function deleteSubmission(int $record): void
+    {
+        try {
+            app(DeleteSalesReturnSubmission::class)->execute(
+                StockTransfer::query()->findOrFail($record),
+                auth()->user(),
+            );
+
+            Notification::make()
+                ->title('Pengajuan Sales dihapus')
+                ->body('Rute Sales telah dibuka kembali dan dapat mengajukan ulang.')
+                ->success()
+                ->send();
+        } catch (ValidationException $exception) {
+            Notification::make()
+                ->title('Pengajuan tidak dapat dihapus')
+                ->body(collect($exception->errors())->flatten()->first())
+                ->danger()
+                ->persistent()
+                ->send();
+        }
+    }
+
+    public function purgeDistribution(int $record): void
+    {
+        try {
+            app(PurgeSalesDistribution::class)->execute(
+                StockTransfer::query()->findOrFail($record),
+                auth()->user(),
+            );
+
+            Notification::make()
+                ->title('Distribusi dihapus')
+                ->body('Seluruh record terkait telah dihapus permanen.')
+                ->success()
+                ->send();
+        } catch (ValidationException $exception) {
+            Notification::make()
+                ->title('Distribusi tidak dapat dihapus')
+                ->body(collect($exception->errors())->flatten()->first())
+                ->danger()
+                ->persistent()
+                ->send();
+        }
     }
 
     private function tabCount(?StockTransferStatus $status = null, ?StockTransferType $type = null): int

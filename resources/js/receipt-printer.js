@@ -78,6 +78,10 @@
         usbEndpoint: null,
         bleDevice: null,
         bleCharacteristic: null,
+        // UUID service/characteristic yang sudah berhasil dipakai, agar sambung
+        // ulang tidak perlu memindai ulang semua profil (lebih cepat & andal).
+        bleServiceUuid: null,
+        bleCharacteristicUuid: null,
     };
 
     const log = (message) => {
@@ -221,10 +225,39 @@
         Boolean(characteristic.properties.write || characteristic.properties.writeWithoutResponse);
 
     /**
+     * Bila sudah tahu UUID characteristic yang berhasil dipakai sebelumnya,
+     * ambil langsung tanpa memindai ulang semua profil.
+     */
+    async function resolveKnownCharacteristic(server) {
+        if (!state.bleServiceUuid || !state.bleCharacteristicUuid) {
+            return null;
+        }
+
+        try {
+            const service = await server.getPrimaryService(state.bleServiceUuid);
+            const characteristic = await service.getCharacteristic(state.bleCharacteristicUuid);
+
+            if (isWritable(characteristic)) {
+                return characteristic;
+            }
+        } catch (error) {
+            // UUID berubah/missing; jatuh ke pemindaian penuh.
+        }
+
+        return null;
+    }
+
+    /**
      * Coba semua pemetaan yang dikenal. Mengembalikan characteristic pertama
      * yang ada dan bisa ditulis.
      */
     async function resolveBleCharacteristic(server) {
+        const known = await resolveKnownCharacteristic(server);
+
+        if (known) {
+            return known;
+        }
+
         const discovered = [];
 
         for (const profile of BLE_PROFILES) {
@@ -251,6 +284,8 @@
                 }
 
                 log(`BLE memakai ${profile.name} → ${characteristic.uuid}`);
+                state.bleServiceUuid = profile.service;
+                state.bleCharacteristicUuid = characteristic.uuid;
 
                 return characteristic;
             } catch (error) {
@@ -270,6 +305,8 @@
                     if (found) {
                         log(`BLE memakai service ${service.uuid} → ${found.uuid}`);
                         discovered.push(`fallback: ${service.uuid} / ${found.uuid}`);
+                        state.bleServiceUuid = service.uuid;
+                        state.bleCharacteristicUuid = found.uuid;
 
                         return found;
                     }
@@ -312,6 +349,7 @@
         state.bleCharacteristic = characteristic;
 
         device.addEventListener('gattserverdisconnected', onBleDisconnect);
+        persistBle();
 
         return device;
     }
@@ -327,21 +365,75 @@
     }
 
     /**
+     * Sambung ke GATT dengan percobaan ulang. Printer thermal BLE sering
+     * memutuskan koneksi sendiri setelah selesai cetak dan butuh jeda singkat
+     * sebelum siap disambung ulang; retry membuatnya jauh lebih andal.
+     */
+    async function connectGattWithRetry(device, attempts = 5) {
+        let lastError;
+
+        for (let i = 0; i < attempts; i += 1) {
+            if (device.gatt.connected) {
+                return device.gatt;
+            }
+
+            try {
+                return await device.gatt.connect();
+            } catch (error) {
+                lastError = error;
+                await sleep(300 * (i + 1));
+            }
+        }
+
+        throw lastError;
+    }
+
+    /**
      * Memastikan ada koneksi Bluetooth aktif. Urutan prioritas:
      *  1. koneksi yang sudah aktif,
-     *  2. sambung ulang ke perangkat yang sama (tanpa dialog),
-     *  3. perangkat yang diingat browser via getDevices() (tanpa dialog),
+     *  2. perangkat yang diingat browser via getDevices() (tanpa dialog),
+     *  3. sambung ulang ke perangkat yang sama (tanpa dialog),
      *  4. terakhir, minta pilih perangkat (perlu user gesture).
      */
     async function ensureBleConnected() {
+        // Pulihkan perangkat yang masih hidup dari window (bertahan lintas
+        // navigasi SPA), lalu cek apakah sudah tersambung.
+        restoreBle();
+
         if (state.bleDevice?.gatt?.connected && state.bleCharacteristic) {
             return;
         }
 
+        // 1. Perangkat yang diingat browser — paling andal untuk sambung ulang
+        //    tanpa dialog, karena browser menyimpan izin & objek segarnya.
+        if (navigator.bluetooth?.getDevices) {
+            try {
+                const devices = await navigator.bluetooth.getDevices();
+
+                for (const device of devices) {
+                    try {
+                        const server = await connectGattWithRetry(device);
+                        state.bleDevice = device;
+                        state.bleCharacteristic = await resolveBleCharacteristic(server);
+                        device.addEventListener('gattserverdisconnected', onBleDisconnect);
+                        persistBle();
+                        log(`BLE tersambung ke perangkat diingat: ${device.name || '(tanpa nama)'}`);
+                        return;
+                    } catch (error) {
+                        log(`Sambung ke ${device.name || 'perangkat'} gagal: ${error.message}`);
+                    }
+                }
+            } catch (error) {
+                log(`getDevices gagal: ${error.message}`);
+            }
+        }
+
+        // 2. Sambung ulang ke perangkat yang sama dari state (tanpa dialog).
         if (state.bleDevice?.gatt) {
             try {
-                const server = await state.bleDevice.gatt.connect();
+                const server = await connectGattWithRetry(state.bleDevice);
                 state.bleCharacteristic = await resolveBleCharacteristic(server);
+                persistBle();
                 log('BLE tersambung ulang ke perangkat yang sama.');
                 return;
             } catch (error) {
@@ -349,24 +441,7 @@
             }
         }
 
-        if (navigator.bluetooth?.getDevices) {
-            try {
-                const devices = await navigator.bluetooth.getDevices();
-                const device = devices.find((item) => item.gatt) ?? devices[0];
-
-                if (device) {
-                    const server = await device.gatt.connect();
-                    state.bleDevice = device;
-                    state.bleCharacteristic = await resolveBleCharacteristic(server);
-                    device.addEventListener('gattserverdisconnected', onBleDisconnect);
-                    log(`BLE memakai perangkat yang diingat browser: ${device.name || '(tanpa nama)'}`);
-                    return;
-                }
-            } catch (error) {
-                log(`getDevices gagal: ${error.message}`);
-            }
-        }
-
+        // 3. Tidak ada perangkat yang bisa disambung ulang — minta pilih.
         await pickBleDevice();
     }
 
@@ -387,6 +462,30 @@
         }
 
         return 'Struk dikirim ke printer via Bluetooth.';
+    }
+
+    /**
+     * Simpan referensi perangkat Bluetooth yang masih hidup ke window agar tetap
+     * tersedia setelah Livewire memorphing DOM (navigasi SPA) tanpa perlu pairing
+     * ulang. Kunci disimpan di localStorage tidak mungkin karena objek perangkat
+     * tidak bisa diserialisasi; window-lifetime adalah pilihan paling aman.
+     */
+    function persistBle() {
+        if (state.bleDevice) {
+            try {
+                window.__pancorBleDevice = state.bleDevice;
+            } catch (error) {
+                // abaikan
+            }
+        }
+    }
+
+    function restoreBle() {
+        const cached = window.__pancorBleDevice;
+
+        if (cached && cached.gatt) {
+            state.bleDevice = cached;
+        }
     }
 
     // -------------------------------------------------------------- publik

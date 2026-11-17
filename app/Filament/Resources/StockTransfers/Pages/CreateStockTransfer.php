@@ -40,9 +40,21 @@ class CreateStockTransfer extends CreateRecord
                 // rute kerja hari ini dibuat otomatis (kosong) lalu dikaitkan.
                 $route = app(ManageSalesRoute::class)->today($sales);
 
-                if (StockTransfer::query()->where('daily_route_id', $route->id)->exists()) {
+                $hasActiveDistribution = StockTransfer::query()
+                    ->where('transfer_type', StockTransferType::IssueToSales)
+                    ->where('sales_id', $sales->id)
+                    ->whereIn('status', [
+                        StockTransferStatus::Draft,
+                        StockTransferStatus::Issued,
+                        StockTransferStatus::Received,
+                        StockTransferStatus::Discrepancy,
+                    ])
+                    ->whereDoesntHave('returnTransfer')
+                    ->exists();
+
+                if ($hasActiveDistribution) {
                     throw ValidationException::withMessages([
-                        'sales_id' => 'Sales ini sudah memiliki transaksi pengiriman stok aktif pada hari ini.',
+                        'sales_id' => 'Sales ini masih memiliki distribusi stok aktif yang belum diselesaikan.',
                     ]);
                 }
 

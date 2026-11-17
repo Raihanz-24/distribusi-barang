@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Enums\DailyRouteStatus;
 use App\Enums\StockTransferType;
 use App\Enums\StockUnit;
 use App\Filament\Resources\SalesStockTransfers\Pages\CreateSalesStockTransfer;
@@ -23,19 +22,12 @@ class CreateSalesStockTransferTest extends TestCase
         $admin = User::factory()->admin()->create();
         $sales = User::factory()->create();
         $product = Product::factory()->create();
-        $route = DailyRoute::factory()->create([
-            'sales_id' => $sales->id,
-            'route_date' => today()->addDay(),
-            'status' => DailyRouteStatus::Scheduled,
-            'created_by' => $admin->id,
-        ]);
         $this->actingAs($admin);
 
         Livewire::test(CreateSalesStockTransfer::class)
             ->fillForm([
                 'transfer_type' => StockTransferType::IssueToSales->value,
                 'sales_id' => $sales->id,
-                'daily_route_id' => $route->id,
                 'items' => [[
                     'product_id' => $product->id,
                     'quantity_entered' => 5,
@@ -44,6 +36,12 @@ class CreateSalesStockTransferTest extends TestCase
             ])
             ->call('create')
             ->assertHasNoFormErrors();
+
+        // Rute kerja hari ini dibuat otomatis untuk Sales dan dikaitkan.
+        $route = DailyRoute::query()
+            ->where('sales_id', $sales->id)
+            ->whereDate('route_date', today())
+            ->firstOrFail();
 
         $this->assertDatabaseHas('stock_transfers', [
             'transfer_type' => StockTransferType::IssueToSales->value,

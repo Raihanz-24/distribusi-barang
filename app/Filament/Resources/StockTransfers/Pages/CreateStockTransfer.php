@@ -3,10 +3,10 @@
 namespace App\Filament\Resources\StockTransfers\Pages;
 
 use App\Actions\CompleteWarehouseTransfer;
+use App\Actions\ManageSalesRoute;
 use App\Enums\StockTransferStatus;
 use App\Enums\StockTransferType;
 use App\Filament\Resources\StockTransfers\StockTransferResource;
-use App\Models\DailyRoute;
 use App\Models\StockTransfer;
 use App\Models\User;
 use App\Services\StockLocationService;
@@ -36,21 +36,13 @@ class CreateStockTransfer extends CreateRecord
             $salesLocation = $locations->forSales($sales);
 
             if ($type === StockTransferType::IssueToSales) {
-                $route = DailyRoute::query()
-                    ->whereKey($data['daily_route_id'] ?? null)
-                    ->where('sales_id', $sales->id)
-                    ->whereIn('status', ['scheduled', 'in_progress'])
-                    ->first();
-
-                if (! $route) {
-                    throw ValidationException::withMessages([
-                        'daily_route_id' => 'Jadwal kerja tidak valid atau bukan milik Sales yang dipilih.',
-                    ]);
-                }
+                // Rute ditentukan oleh Sales sendiri. Saat Admin menyerahkan stok,
+                // rute kerja hari ini dibuat otomatis (kosong) lalu dikaitkan.
+                $route = app(ManageSalesRoute::class)->today($sales);
 
                 if (StockTransfer::query()->where('daily_route_id', $route->id)->exists()) {
                     throw ValidationException::withMessages([
-                        'daily_route_id' => 'Jadwal kerja ini sudah memiliki transaksi pengiriman stok.',
+                        'sales_id' => 'Sales ini sudah memiliki transaksi pengiriman stok aktif pada hari ini.',
                     ]);
                 }
 

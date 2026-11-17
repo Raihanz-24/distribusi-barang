@@ -14,7 +14,6 @@ use App\Enums\StockUnit;
 use App\Filament\Resources\StockTransfers\Pages\CreateStockTransfer;
 use App\Filament\Resources\StockTransfers\Pages\EditStockTransfer;
 use App\Filament\Resources\StockTransfers\Pages\ListStockTransfers;
-use App\Models\DailyRoute;
 use App\Models\StockTransfer;
 use App\Models\User;
 use Filament\Actions\Action;
@@ -73,7 +72,6 @@ class StockTransferResource extends Resource
                         ->live()
                         ->afterStateUpdated(function (Set $set): void {
                             $set('sales_id', null);
-                            $set('daily_route_id', null);
                         })
                         ->disabled(fn (?StockTransfer $record) => $record && $record->status !== StockTransferStatus::Draft),
                     Select::make('sales_id')
@@ -87,18 +85,7 @@ class StockTransferResource extends Resource
                         ->required(fn (Get $get) => $get('transfer_type') !== StockTransferType::WarehouseTransfer->value)
                         ->visible(fn (Get $get) => $get('transfer_type') !== StockTransferType::WarehouseTransfer->value)
                         ->live()
-                        ->afterStateUpdated(fn (Set $set) => $set('daily_route_id', null))
                         ->disabled(fn (?StockTransfer $record) => $record && $record->status !== StockTransferStatus::Draft),
-                    Select::make('daily_route_id')
-                        ->label('Jadwal / rute kerja')
-                        ->options(fn (Get $get) => static::scheduleOptions($get))
-                        ->placeholder(fn (Get $get) => $get('sales_id') ? 'Pilih jadwal kerja Sales' : 'Pilih Sales terlebih dahulu')
-                        ->helperText('Pengiriman stok akan terhubung dengan toko dan area yang dijadwalkan pada hari tersebut.')
-                        ->searchable()
-                        ->required(fn (Get $get) => $get('transfer_type') === StockTransferType::IssueToSales->value)
-                        ->visible(fn (Get $get) => $get('transfer_type') === StockTransferType::IssueToSales->value)
-                        ->disabled(fn (Get $get, ?StockTransfer $record) => ! $get('sales_id')
-                            || ($record && $record->status !== StockTransferStatus::Draft)),
                     Textarea::make('notes')
                         ->label('Catatan penyerahan')
                         ->rows(2)
@@ -527,35 +514,6 @@ class StockTransferResource extends Resource
         return collect(StockTransferType::cases())
             ->filter(fn (StockTransferType $type) => in_array($type->value, static::creatableTransferTypes(), true))
             ->mapWithKeys(fn (StockTransferType $type) => [$type->value => $type->label()])
-            ->all();
-    }
-
-    protected static function scheduleOptions(Get $get): array
-    {
-        if (! $get('sales_id')) {
-            return [];
-        }
-
-        return DailyRoute::query()
-            ->with(['area', 'areas'])
-            ->withCount('routeStores')
-            ->where('sales_id', $get('sales_id'))
-            ->whereDate('route_date', '>=', today())
-            ->whereIn('status', ['scheduled', 'in_progress'])
-            ->orderBy('route_date')
-            ->get()
-            ->mapWithKeys(function (DailyRoute $route): array {
-                $areaNames = $route->areas->pluck('name');
-
-                if ($areaNames->isEmpty() && $route->area) {
-                    $areaNames = collect([$route->area->name]);
-                }
-
-                $areas = $areaNames->isNotEmpty() ? $areaNames->join(', ') : 'Rute khusus';
-
-                return [$route->id => $route->route_date->translatedFormat('d M Y')
-                    ." — {$areas} — {$route->route_stores_count} toko"];
-            })
             ->all();
     }
 }

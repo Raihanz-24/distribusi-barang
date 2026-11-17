@@ -152,6 +152,11 @@ class DailyRouteResource extends Resource
         ])->recordActions([EditAction::make()]);
     }
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();

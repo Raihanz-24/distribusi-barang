@@ -279,8 +279,6 @@
                         <span class="text-xs font-semibold uppercase tracking-wide text-green-800/70 dark:text-green-300/70">Jalur cetak</span>
                         <select x-model="channel" x-on:change="setChannel(channel)"
                             class="min-h-10 rounded-xl border border-green-700/30 bg-white px-3 text-sm font-semibold text-green-900 dark:bg-gray-900 dark:text-green-200">
-                            <option value="auto">Otomatis</option>
-                            <option value="agent">Print agent (Windows)</option>
                             <option value="usb">USB</option>
                             <option value="bluetooth">Bluetooth (BLE)</option>
                         </select>
@@ -305,14 +303,6 @@
                                     <button type="button" x-on:click="print('{{ $visit['escpos_url'] }}')" x-bind:disabled="busy"
                                         class="inline-flex min-h-10 items-center justify-center rounded-xl bg-green-700 px-4 text-sm font-bold text-white hover:bg-green-800 disabled:opacity-50">
                                         🖨️ Cetak
-                                    </button>
-                                    <button type="button" x-on:click="print('{{ $visit['escpos_url'] }}', 'usb')" x-bind:disabled="busy"
-                                        class="inline-flex min-h-10 items-center justify-center rounded-xl bg-green-700/10 px-3 text-xs font-semibold text-green-800 hover:bg-green-700/20 disabled:opacity-50 dark:text-green-300">
-                                        🔌 USB
-                                    </button>
-                                    <button type="button" x-on:click="print('{{ $visit['escpos_url'] }}', 'bluetooth')" x-bind:disabled="busy"
-                                        class="inline-flex min-h-10 items-center justify-center rounded-xl bg-green-700/10 px-3 text-xs font-semibold text-green-800 hover:bg-green-700/20 disabled:opacity-50 dark:text-green-300">
-                                        📶 Bluetooth
                                     </button>
                                     <a href="{{ $visit['receipt_url'] }}" target="_blank"
                                         class="inline-flex min-h-10 items-center justify-center rounded-xl border border-green-700/30 px-3 text-xs font-semibold text-green-800 hover:bg-green-700/10 dark:text-green-300">

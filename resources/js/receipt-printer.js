@@ -420,50 +420,40 @@
         lastError: '',
         channel: (() => {
             try {
-                return localStorage.getItem(STORAGE_KEY) || 'auto';
+                const stored = localStorage.getItem(STORAGE_KEY);
+
+                return stored === 'bluetooth' || stored === 'usb' ? stored : 'usb';
             } catch (error) {
-                return 'auto';
+                return 'usb';
             }
         })(),
 
         setChannel(value) {
-            this.channel = value;
+            // Hanya mendukung jalur USB dan Bluetooth.
+            this.channel = value === 'bluetooth' ? 'bluetooth' : 'usb';
 
             try {
-                localStorage.setItem(STORAGE_KEY, value);
+                localStorage.setItem(STORAGE_KEY, this.channel);
             } catch (error) {
                 // localStorage bisa diblokir; abaikan
             }
         },
 
         /**
-         * @param {string} url    endpoint ESC/POS
-         * @param {string} forced 'agent' | 'usb' | 'bluetooth' (opsional)
+         * @param {string} url endpoint ESC/POS
          */
-        async print(url, forced) {
+        async print(url) {
             if (this.busy) {
                 return;
             }
 
-            const channel = forced || this.channel;
+            const channel = this.channel === 'bluetooth' ? 'bluetooth' : 'usb';
 
             this.busy = true;
             this.status = 'Menyiapkan struk...';
             this.lastError = '';
 
             try {
-                if (channel === 'auto' || channel === 'agent') {
-                    if (await agentAvailable()) {
-                        this.status = 'Mengirim ke print agent...';
-                        this.status = await printViaAgent(await fetchReceiptBytes(url));
-                        return;
-                    }
-
-                    if (channel === 'agent') {
-                        throw new Error('Print agent tidak berjalan. Jalankan tools/print-agent/agent.ps1.');
-                    }
-                }
-
                 // Pilih perangkat DULU (gesture masih aktif), baru ambil byte.
                 // Bila perangkat sudah terhubung pada halaman ini, koneksi
                 // dipakai ulang sehingga tidak meminta pairing setiap kali cetak.
@@ -476,32 +466,11 @@
                     return;
                 }
 
-                if (channel === 'bluetooth') {
-                    if (!state.bleDevice?.gatt?.connected || !state.bleCharacteristic) {
-                        this.status = 'Menyambung ke printer Bluetooth...';
-                        await ensureBleConnected();
-                    }
-                    this.status = await printViaBluetooth(await fetchReceiptBytes(url));
-                    return;
+                if (!state.bleDevice?.gatt?.connected || !state.bleCharacteristic) {
+                    this.status = 'Menyambung ke printer Bluetooth...';
+                    await ensureBleConnected();
                 }
-
-                try {
-                    if (!state.usbDevice || !state.usbEndpoint) {
-                        this.status = 'Pilih printer USB...';
-                        await pickUsbDeviceSafe();
-                    }
-                    this.status = await printViaUsb(await fetchReceiptBytes(url));
-                } catch (usbError) {
-                    if (!('bluetooth' in navigator)) {
-                        throw usbError;
-                    }
-
-                    if (!state.bleDevice?.gatt?.connected || !state.bleCharacteristic) {
-                        this.status = 'Mencoba Bluetooth...';
-                        await ensureBleConnected();
-                    }
-                    this.status = await printViaBluetooth(await fetchReceiptBytes(url));
-                }
+                this.status = await printViaBluetooth(await fetchReceiptBytes(url));
             } catch (error) {
                 this.lastError = error.message || String(error);
                 this.status = '';
@@ -510,19 +479,16 @@
             }
         },
 
-        async connect(channel) {
+        async connect() {
             this.lastError = '';
 
             try {
-                if (channel === 'usb') {
-                    await pickUsbDevice();
-                    this.status = 'Printer USB siap.';
-                } else if (channel === 'bluetooth') {
-                    await pickBleDevice();
+                if (this.channel === 'bluetooth') {
+                    await ensureBleConnected();
                     this.status = 'Printer Bluetooth siap.';
                 } else {
-                    const ok = await agentAvailable();
-                    this.status = ok ? 'Print agent terdeteksi.' : 'Print agent tidak berjalan.';
+                    await pickUsbDevice();
+                    this.status = 'Printer USB siap.';
                 }
             } catch (error) {
                 this.lastError = error.message || String(error);

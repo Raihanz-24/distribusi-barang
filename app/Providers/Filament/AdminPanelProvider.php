@@ -62,6 +62,7 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => Color::hex('#c97832'),
             ])
             ->renderHook(PanelsRenderHook::HEAD_END, fn () => view('filament.pwa-head'))
+            ->renderHook(PanelsRenderHook::BODY_START, fn () => view('filament.gps-gate'))
             ->renderHook(PanelsRenderHook::BODY_END, fn () => view('filament.sales-location-tracker'))
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')

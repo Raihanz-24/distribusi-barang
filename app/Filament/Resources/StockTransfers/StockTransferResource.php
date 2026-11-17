@@ -130,7 +130,7 @@ class StockTransferResource extends Resource
                         ->columns(3)
                         ->minItems(1)
                         ->addActionLabel('Tambah produk')
-                        ->defaultItems(2)
+                        ->defaultItems(1)
                         ->disabled(fn (?StockTransfer $record) => $record && $record->status !== StockTransferStatus::Draft)
                         ->columnSpanFull(),
                 ]),
